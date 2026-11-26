@@ -437,7 +437,7 @@
         <span class="autosave-dot" id="autoSaveDot"></span>
         <span id="autoSaveText">Saved</span>
       </span>
-      <button class="btn active" id="snapToggle">Snap 90°</button>
+      <button class="btn active" id="snapToggle" title="Keeps walls straight (90°) and joins them to other walls">Snap</button>
       <button class="btn active" id="penOnlyToggle">S-Pen</button>
       <button class="btn" id="resetViewBtn">Fit</button>
     </div>
@@ -1209,41 +1209,64 @@
 
   function screenToWorld(sx, sy) { return { x: (sx - cam.x) / cam.zoom, y: (sy - cam.y) / cam.zoom }; }
 
-  function getSnappedPoint(wx, wy, startPt = null) {
-    const p = plans[activePlanIdx];
-    const snapRadius = 18 / cam.zoom;
-    let rx = wx, ry = wy, snappedToVertex = false;
+  // Snap guide shown on screen while drawing (green ring = joined, dashed line = lined up)
+  let snapGuide = null;
 
-    if (snapEnabled) {
-      let bestDist = snapRadius;
-      for (const w of p.walls) {
-        const d1 = Math.hypot(w.x1 - wx, w.y1 - wy);
-        if (d1 < bestDist) { bestDist = d1; rx = w.x1; ry = w.y1; snappedToVertex = true; }
-        const d2 = Math.hypot(w.x2 - wx, w.y2 - wy);
-        if (d2 < bestDist) { bestDist = d2; rx = w.x2; ry = w.y2; snappedToVertex = true; }
+  function getSnappedPoint(wx, wy, startPt = null, exclude = null) {
+    snapGuide = null;
+    if (!snapEnabled) return { x: wx, y: wy, snapped: false };
+    const walls = plans[activePlanIdx].walls.filter(w => w !== exclude);
+    const r = 18 / cam.zoom;
+
+    // Starting point: join a wall corner first, otherwise land on a wall line
+    if (!startPt) {
+      let best = null, bestD = r;
+      for (const w of walls) {
+        for (const [ex, ey] of [[w.x1, w.y1], [w.x2, w.y2]]) {
+          const d = Math.hypot(ex - wx, ey - wy);
+          if (d < bestD) { bestD = d; best = { x: ex, y: ey }; }
+        }
       }
+      if (!best) {
+        bestD = r * 0.8;
+        for (const w of walls) {
+          const seg = distToSegment(wx, wy, w.x1, w.y1, w.x2, w.y2);
+          if (seg.dist < bestD) { bestD = seg.dist; best = { x: seg.x, y: seg.y }; }
+        }
+      }
+      if (best) { snapGuide = { x: best.x, y: best.y, kind: 'join' }; return { x: best.x, y: best.y, snapped: true }; }
+      return { x: wx, y: wy, snapped: false };
+    }
 
-      if (startPt && !snappedToVertex) {
-        const dx = rx - startPt.x, dy = ry - startPt.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 8 / cam.zoom) {
-          const angle = Math.atan2(dy, dx);
-          const snapStep = Math.PI / 4;
-          const nearestAngle = Math.round(angle / snapStep) * snapStep;
-          if (Math.abs(angle - nearestAngle) < 0.22) {
-            rx = startPt.x + Math.cos(nearestAngle) * dist;
-            ry = startPt.y + Math.sin(nearestAngle) * dist;
-          }
-        }
-        for (const w of p.walls) {
-          if (Math.abs(rx - w.x1) < snapRadius * 0.6) rx = w.x1;
-          else if (Math.abs(rx - w.x2) < snapRadius * 0.6) rx = w.x2;
-          if (Math.abs(ry - w.y1) < snapRadius * 0.6) ry = w.y1;
-          else if (Math.abs(ry - w.y2) < snapRadius * 0.6) ry = w.y2;
-        }
+    // End point: always perfectly horizontal or vertical
+    const horiz = Math.abs(wx - startPt.x) >= Math.abs(wy - startPt.y);
+    const fixed = horiz ? startPt.y : startPt.x;   // the coordinate that never changes
+    let free = horiz ? wx : wy;                       // the coordinate along the line
+    let bestD = r, bestKind = null, guideFrom = null, bestVal = null;
+    const consider = (val, kind, from, weight) => {
+      const d = Math.abs(val - free) * weight;
+      if (d < bestD) { bestD = d; bestVal = val; bestKind = kind; guideFrom = from; }
+    };
+
+    for (const w of walls) {
+      // 1. Stop exactly where our line meets another wall (T-junctions & corners)
+      const ax = horiz ? w.x1 : w.y1, ay = horiz ? w.y1 : w.x1;
+      const bx = horiz ? w.x2 : w.y2, by = horiz ? w.y2 : w.x2;
+      if (Math.abs(by - ay) > 0.5) {
+        const t = (fixed - ay) / (by - ay);
+        if (t >= -0.02 && t <= 1.02) consider(ax + t * (bx - ax), 'join', null, 0.7);
+      }
+      // 2. Line up with the corners of other walls
+      for (const [ex, ey] of [[w.x1, w.y1], [w.x2, w.y2]]) {
+        const onLine = Math.abs((horiz ? ey : ex) - fixed) < 0.5;
+        consider(horiz ? ex : ey, onLine ? 'join' : 'align', onLine ? null : { x: ex, y: ey }, 1);
       }
     }
-    return { x: rx, y: ry, snapped: snappedToVertex };
+
+    if (bestVal !== null) free = bestVal;
+    const x = horiz ? free : fixed, y = horiz ? fixed : free;
+    if (bestKind) snapGuide = { x, y, kind: bestKind, from: guideFrom };
+    return { x, y, snapped: !!bestKind };
   }
 
   function distToSegment(px, py, x1, y1, x2, y2) {
@@ -1552,10 +1575,10 @@
       }
       if (selectedItem.type === 'wall') {
         if (selectedItem.handle === 'p1') {
-          const s = getSnappedPoint(selectedItem.orig.x1 + dx, selectedItem.orig.y1 + dy, { x: selectedItem.item.x2, y: selectedItem.item.y2 });
+          const s = getSnappedPoint(selectedItem.orig.x1 + dx, selectedItem.orig.y1 + dy, { x: selectedItem.item.x2, y: selectedItem.item.y2 }, selectedItem.item);
           selectedItem.item.x1 = s.x; selectedItem.item.y1 = s.y;
         } else if (selectedItem.handle === 'p2') {
-          const s = getSnappedPoint(selectedItem.orig.x2 + dx, selectedItem.orig.y2 + dy, { x: selectedItem.item.x1, y: selectedItem.item.y1 });
+          const s = getSnappedPoint(selectedItem.orig.x2 + dx, selectedItem.orig.y2 + dy, { x: selectedItem.item.x1, y: selectedItem.item.y1 }, selectedItem.item);
           selectedItem.item.x2 = s.x; selectedItem.item.y2 = s.y;
         } else {
           selectedItem.item.x1 = selectedItem.orig.x1 + dx; selectedItem.item.y1 = selectedItem.orig.y1 + dy;
@@ -1584,6 +1607,7 @@
     if (e.pointerType === 'touch') { isSingleTouchPanning = false; lastPanPt = null; }
     if (e.pointerId !== activeDrawPointerId) return;
     activeDrawPointerId = null;
+    snapGuide = null;
 
     if (draftWall) {
       if (Math.hypot(draftWall.x2 - draftWall.x1, draftWall.y2 - draftWall.y1) > 8 / cam.zoom) {
@@ -1742,6 +1766,19 @@
       } else if (selectedItem.type === 'stamp') {
         ctx.beginPath(); ctx.arc(selectedItem.item.x, selectedItem.item.y, 26 / cam.zoom, 0, Math.PI * 2); ctx.stroke();
       }
+      ctx.restore();
+    }
+
+    if (snapGuide && !exportClean) {
+      ctx.save();
+      if (snapGuide.from) {
+        ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1.5 / cam.zoom;
+        ctx.setLineDash([6 / cam.zoom, 5 / cam.zoom]);
+        ctx.beginPath(); ctx.moveTo(snapGuide.from.x, snapGuide.from.y); ctx.lineTo(snapGuide.x, snapGuide.y); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2.5 / cam.zoom;
+      ctx.beginPath(); ctx.arc(snapGuide.x, snapGuide.y, (snapGuide.kind === 'join' ? 10 : 7) / cam.zoom, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
 
@@ -1962,7 +1999,7 @@
   snapToggle.addEventListener('click', () => {
     snapEnabled = !snapEnabled;
     snapToggle.classList.toggle('active', snapEnabled);
-    showStatus(snapEnabled ? '90° Angle & Corner Snapping ON' : 'Free-angle Wall Drawing (Snap OFF)');
+    showStatus(snapEnabled ? 'Snap ON: walls stay straight and join up to other walls' : 'Snap OFF: draw walls at any angle');
   });
 
   const penOnlyToggle = document.getElementById('penOnlyToggle');
