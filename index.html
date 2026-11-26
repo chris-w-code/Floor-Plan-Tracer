@@ -361,6 +361,15 @@
   .param-header span:last-child { color: var(--accent); }
   .param-group input[type="range"] { width: 100%; accent-color: #a855f7; }
   .param-hint { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+  .detail-choices { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .detail-choice {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+    padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: rgba(15, 23, 42, 0.55); color: #e2e8f0; font: inherit; cursor: pointer;
+  }
+  .detail-choice strong { font-size: 13px; }
+  .detail-choice small { font-size: 11px; color: var(--muted); }
+  .detail-choice.selected { border-color: #a855f7; background: rgba(168, 85, 247, 0.18); }
 
   .project-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 190px; overflow-y: auto; }
   .project-item {
@@ -428,7 +437,7 @@
         <span class="autosave-dot" id="autoSaveDot"></span>
         <span id="autoSaveText">Saved</span>
       </span>
-      <button class="btn active" id="snapToggle">Snap 90°</button>
+      <button class="btn active" id="snapToggle" title="Keeps walls straight (90°) and joins them to other walls">Snap</button>
       <button class="btn active" id="penOnlyToggle">S-Pen</button>
       <button class="btn" id="resetViewBtn">Fit</button>
     </div>
@@ -525,32 +534,19 @@
     <h3><span>AutoDraw Current Floorplan</span></h3>
     <p>Scans your background floorplan image and converts dark structural wall lines into editable, snapped vector walls.</p>
 
-    <div class="param-group">
-      <div class="param-header">
-        <span>Darkness Sensitivity</span>
-        <span id="threshValLabel">135</span>
-      </div>
-      <input type="range" id="autoThreshSlider" min="50" max="210" value="135">
-      <div class="param-hint">Lower = only pitch-black walls • Higher = picks up grey walls</div>
+    <div class="param-header" style="margin-bottom:8px;"><span>How much detail?</span></div>
+    <div class="detail-choices" id="autoDetailChoices">
+      <button type="button" class="detail-choice" data-level="clean">
+        <strong>Main walls</strong><small>Thick walls only. Ignores text &amp; furniture.</small>
+      </button>
+      <button type="button" class="detail-choice selected" data-level="balanced">
+        <strong>Balanced</strong><small>Recommended for most plans.</small>
+      </button>
+      <button type="button" class="detail-choice" data-level="detailed">
+        <strong>Everything</strong><small>Includes thin &amp; short walls. May add extra lines.</small>
+      </button>
     </div>
-
-    <div class="param-group">
-      <div class="param-header">
-        <span>Ignore Text & Small Details (Min Wall)</span>
-        <span id="minLenValLabel">45 px</span>
-      </div>
-      <input type="range" id="autoMinLenSlider" min="20" max="120" value="45">
-      <div class="param-hint">Filters out room text, door swings, and small icons</div>
-    </div>
-
-    <div class="param-group">
-      <div class="param-header">
-        <span>Merge Parallel Double-Lines</span>
-        <span id="mergeDistLabel">16 px</span>
-      </div>
-      <input type="range" id="autoMergeSlider" min="6" max="36" value="16">
-      <div class="param-hint">Collapses hollow wall outlines into single centreline walls</div>
-    </div>
+    <div class="param-hint" style="margin-bottom:12px;">Not quite right? Press Undo, pick another option and try again.</div>
 
     <div class="modal-actions" style="justify-content: space-between;">
       <button class="btn" id="closeAutoDrawBtn">Cancel</button>
@@ -941,11 +937,19 @@
     showStatus('Redid action');
   }
 
+  let autoDetailLevel = 'balanced';
+
   function runFullImageAutoDraw(replaceExisting = true) {
     if (!bgImage) { showStatus('Upload a floorplan image first!'); return; }
-    const thresh = parseInt(document.getElementById('autoThreshSlider').value, 10);
-    const minLenOrig = parseInt(document.getElementById('autoMinLenSlider').value, 10);
-    const mergeDistOrig = parseInt(document.getElementById('autoMergeSlider').value, 10);
+    // One simple "detail" choice replaces the old three sliders
+    const presets = {
+      clean:    { minLen: 75, merge: 22, darkFactor: 0.85 },
+      balanced: { minLen: 45, merge: 16, darkFactor: 1.0 },
+      detailed: { minLen: 24, merge: 10, darkFactor: 1.12 }
+    };
+    const preset = presets[autoDetailLevel] || presets.balanced;
+    const minLenOrig = preset.minLen;
+    const mergeDistOrig = preset.merge;
 
     const maxDim = 1000;
     const scale = Math.min(1, maxDim / Math.max(bgImage.width, bgImage.height));
@@ -962,11 +966,31 @@
 
     const imgData = tctx.getImageData(0, 0, sw, sh).data;
     const mask = new Uint8Array(sw * sh);
-
+    const lums = new Uint8Array(sw * sh);
+    const hist = new Array(256).fill(0);
     for (let i = 0; i < sw * sh; i++) {
       const idx = i * 4;
-      const lum = 0.299 * imgData[idx] + 0.587 * imgData[idx + 1] + 0.114 * imgData[idx + 2];
-      if (lum < thresh) mask[i] = 1;
+      const lum = Math.round(0.299 * imgData[idx] + 0.587 * imgData[idx + 1] + 0.114 * imgData[idx + 2]);
+      lums[i] = lum; hist[lum]++;
+    }
+
+    // Work out the darkness cut-off automatically (Otsu's method) so the user doesn't have to
+    const total = sw * sh;
+    let sumAll = 0;
+    for (let t = 0; t < 256; t++) sumAll += t * hist[t];
+    let sumB = 0, wB = 0, bestVar = -1, otsu = 135;
+    for (let t = 0; t < 256; t++) {
+      wB += hist[t]; if (wB === 0) continue;
+      const wF = total - wB; if (wF === 0) break;
+      sumB += t * hist[t];
+      const mB = sumB / wB, mF = (sumAll - sumB) / wF;
+      const between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > bestVar) { bestVar = between; otsu = t; }
+    }
+    const thresh = Math.min(215, Math.max(50, Math.round(otsu * preset.darkFactor)));
+
+    for (let i = 0; i < total; i++) {
+      if (lums[i] < thresh) mask[i] = 1;
     }
 
     const minRun = Math.max(12, Math.round(minLenOrig * scale));
@@ -1185,41 +1209,64 @@
 
   function screenToWorld(sx, sy) { return { x: (sx - cam.x) / cam.zoom, y: (sy - cam.y) / cam.zoom }; }
 
-  function getSnappedPoint(wx, wy, startPt = null) {
-    const p = plans[activePlanIdx];
-    const snapRadius = 18 / cam.zoom;
-    let rx = wx, ry = wy, snappedToVertex = false;
+  // Snap guide shown on screen while drawing (green ring = joined, dashed line = lined up)
+  let snapGuide = null;
 
-    if (snapEnabled) {
-      let bestDist = snapRadius;
-      for (const w of p.walls) {
-        const d1 = Math.hypot(w.x1 - wx, w.y1 - wy);
-        if (d1 < bestDist) { bestDist = d1; rx = w.x1; ry = w.y1; snappedToVertex = true; }
-        const d2 = Math.hypot(w.x2 - wx, w.y2 - wy);
-        if (d2 < bestDist) { bestDist = d2; rx = w.x2; ry = w.y2; snappedToVertex = true; }
+  function getSnappedPoint(wx, wy, startPt = null, exclude = null) {
+    snapGuide = null;
+    if (!snapEnabled) return { x: wx, y: wy, snapped: false };
+    const walls = plans[activePlanIdx].walls.filter(w => w !== exclude);
+    const r = 18 / cam.zoom;
+
+    // Starting point: join a wall corner first, otherwise land on a wall line
+    if (!startPt) {
+      let best = null, bestD = r;
+      for (const w of walls) {
+        for (const [ex, ey] of [[w.x1, w.y1], [w.x2, w.y2]]) {
+          const d = Math.hypot(ex - wx, ey - wy);
+          if (d < bestD) { bestD = d; best = { x: ex, y: ey }; }
+        }
       }
+      if (!best) {
+        bestD = r * 0.8;
+        for (const w of walls) {
+          const seg = distToSegment(wx, wy, w.x1, w.y1, w.x2, w.y2);
+          if (seg.dist < bestD) { bestD = seg.dist; best = { x: seg.x, y: seg.y }; }
+        }
+      }
+      if (best) { snapGuide = { x: best.x, y: best.y, kind: 'join' }; return { x: best.x, y: best.y, snapped: true }; }
+      return { x: wx, y: wy, snapped: false };
+    }
 
-      if (startPt && !snappedToVertex) {
-        const dx = rx - startPt.x, dy = ry - startPt.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 8 / cam.zoom) {
-          const angle = Math.atan2(dy, dx);
-          const snapStep = Math.PI / 4;
-          const nearestAngle = Math.round(angle / snapStep) * snapStep;
-          if (Math.abs(angle - nearestAngle) < 0.22) {
-            rx = startPt.x + Math.cos(nearestAngle) * dist;
-            ry = startPt.y + Math.sin(nearestAngle) * dist;
-          }
-        }
-        for (const w of p.walls) {
-          if (Math.abs(rx - w.x1) < snapRadius * 0.6) rx = w.x1;
-          else if (Math.abs(rx - w.x2) < snapRadius * 0.6) rx = w.x2;
-          if (Math.abs(ry - w.y1) < snapRadius * 0.6) ry = w.y1;
-          else if (Math.abs(ry - w.y2) < snapRadius * 0.6) ry = w.y2;
-        }
+    // End point: always perfectly horizontal or vertical
+    const horiz = Math.abs(wx - startPt.x) >= Math.abs(wy - startPt.y);
+    const fixed = horiz ? startPt.y : startPt.x;   // the coordinate that never changes
+    let free = horiz ? wx : wy;                       // the coordinate along the line
+    let bestD = r, bestKind = null, guideFrom = null, bestVal = null;
+    const consider = (val, kind, from, weight) => {
+      const d = Math.abs(val - free) * weight;
+      if (d < bestD) { bestD = d; bestVal = val; bestKind = kind; guideFrom = from; }
+    };
+
+    for (const w of walls) {
+      // 1. Stop exactly where our line meets another wall (T-junctions & corners)
+      const ax = horiz ? w.x1 : w.y1, ay = horiz ? w.y1 : w.x1;
+      const bx = horiz ? w.x2 : w.y2, by = horiz ? w.y2 : w.x2;
+      if (Math.abs(by - ay) > 0.5) {
+        const t = (fixed - ay) / (by - ay);
+        if (t >= -0.02 && t <= 1.02) consider(ax + t * (bx - ax), 'join', null, 0.7);
+      }
+      // 2. Line up with the corners of other walls
+      for (const [ex, ey] of [[w.x1, w.y1], [w.x2, w.y2]]) {
+        const onLine = Math.abs((horiz ? ey : ex) - fixed) < 0.5;
+        consider(horiz ? ex : ey, onLine ? 'join' : 'align', onLine ? null : { x: ex, y: ey }, 1);
       }
     }
-    return { x: rx, y: ry, snapped: snappedToVertex };
+
+    if (bestVal !== null) free = bestVal;
+    const x = horiz ? free : fixed, y = horiz ? fixed : free;
+    if (bestKind) snapGuide = { x, y, kind: bestKind, from: guideFrom };
+    return { x, y, snapped: !!bestKind };
   }
 
   function distToSegment(px, py, x1, y1, x2, y2) {
@@ -1528,10 +1575,10 @@
       }
       if (selectedItem.type === 'wall') {
         if (selectedItem.handle === 'p1') {
-          const s = getSnappedPoint(selectedItem.orig.x1 + dx, selectedItem.orig.y1 + dy, { x: selectedItem.item.x2, y: selectedItem.item.y2 });
+          const s = getSnappedPoint(selectedItem.orig.x1 + dx, selectedItem.orig.y1 + dy, { x: selectedItem.item.x2, y: selectedItem.item.y2 }, selectedItem.item);
           selectedItem.item.x1 = s.x; selectedItem.item.y1 = s.y;
         } else if (selectedItem.handle === 'p2') {
-          const s = getSnappedPoint(selectedItem.orig.x2 + dx, selectedItem.orig.y2 + dy, { x: selectedItem.item.x1, y: selectedItem.item.y1 });
+          const s = getSnappedPoint(selectedItem.orig.x2 + dx, selectedItem.orig.y2 + dy, { x: selectedItem.item.x1, y: selectedItem.item.y1 }, selectedItem.item);
           selectedItem.item.x2 = s.x; selectedItem.item.y2 = s.y;
         } else {
           selectedItem.item.x1 = selectedItem.orig.x1 + dx; selectedItem.item.y1 = selectedItem.orig.y1 + dy;
@@ -1560,6 +1607,7 @@
     if (e.pointerType === 'touch') { isSingleTouchPanning = false; lastPanPt = null; }
     if (e.pointerId !== activeDrawPointerId) return;
     activeDrawPointerId = null;
+    snapGuide = null;
 
     if (draftWall) {
       if (Math.hypot(draftWall.x2 - draftWall.x1, draftWall.y2 - draftWall.y1) > 8 / cam.zoom) {
@@ -1721,6 +1769,19 @@
       ctx.restore();
     }
 
+    if (snapGuide && !exportClean) {
+      ctx.save();
+      if (snapGuide.from) {
+        ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1.5 / cam.zoom;
+        ctx.setLineDash([6 / cam.zoom, 5 / cam.zoom]);
+        ctx.beginPath(); ctx.moveTo(snapGuide.from.x, snapGuide.from.y); ctx.lineTo(snapGuide.x, snapGuide.y); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2.5 / cam.zoom;
+      ctx.beginPath(); ctx.arc(snapGuide.x, snapGuide.y, (snapGuide.kind === 'join' ? 10 : 7) / cam.zoom, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+
     if (draftScaleLine) {
       ctx.save(); ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 4 / cam.zoom;
       ctx.setLineDash([8 / cam.zoom, 6 / cam.zoom]);
@@ -1854,14 +1915,15 @@
   });
 
   const autoDrawModal = document.getElementById('autoDrawModal');
-  const autoThreshSlider = document.getElementById('autoThreshSlider');
-  const autoMinLenSlider = document.getElementById('autoMinLenSlider');
-  const autoMergeSlider = document.getElementById('autoMergeSlider');
+  document.querySelectorAll('#autoDetailChoices .detail-choice').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#autoDetailChoices .detail-choice').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      autoDetailLevel = btn.dataset.level;
+    });
+  });
 
   document.getElementById('autoDrawBtn').addEventListener('click', () => { autoDrawModal.style.display = 'flex'; });
-  autoThreshSlider.addEventListener('input', () => { document.getElementById('threshValLabel').textContent = autoThreshSlider.value; });
-  autoMinLenSlider.addEventListener('input', () => { document.getElementById('minLenValLabel').textContent = autoMinLenSlider.value + ' px'; });
-  autoMergeSlider.addEventListener('input', () => { document.getElementById('mergeDistLabel').textContent = autoMergeSlider.value + ' px'; });
 
   document.getElementById('runAutoDrawReplaceBtn').addEventListener('click', () => { runFullImageAutoDraw(true); autoDrawModal.style.display = 'none'; });
   document.getElementById('runAutoDrawAddBtn').addEventListener('click', () => { runFullImageAutoDraw(false); autoDrawModal.style.display = 'none'; });
@@ -1937,7 +1999,7 @@
   snapToggle.addEventListener('click', () => {
     snapEnabled = !snapEnabled;
     snapToggle.classList.toggle('active', snapEnabled);
-    showStatus(snapEnabled ? '90° Angle & Corner Snapping ON' : 'Free-angle Wall Drawing (Snap OFF)');
+    showStatus(snapEnabled ? 'Snap ON: walls stay straight and join up to other walls' : 'Snap OFF: draw walls at any angle');
   });
 
   const penOnlyToggle = document.getElementById('penOnlyToggle');
