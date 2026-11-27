@@ -1658,6 +1658,8 @@
       [
         { id: 'door', label: 'Swing Door' },
         { id: 'window', label: 'Window' },
+        { id: 'sliding', label: 'Sliding Door' },
+        { id: 'cavity', label: 'Cavity Slider' },
         { id: 'opening', label: 'Open Way' },
         { id: 'label', label: '+ Room Label' }
       ].forEach(st => {
@@ -1752,8 +1754,8 @@
         render(); scheduleAutoSave();
       }));
     }
-    if (item.type === 'door') {
-      contextRow.appendChild(makeChip('⇅ Flip swing', () => {
+    if (item.type === 'door' || item.type === 'cavity') {
+      contextRow.appendChild(makeChip(item.type === 'door' ? '⇅ Flip swing' : '⇄ Flip cavity side', () => {
         saveHistory(); item.flipped = !item.flipped; render(); scheduleAutoSave();
       }));
     }
@@ -1871,7 +1873,8 @@
       }
 
       saveHistory();
-      const defaultWidth = stampType === 'door' ? 0.82 * pixelsPerMetre : 1.2 * pixelsPerMetre;
+      const DEFAULT_WIDTH_M = { door: 0.82, cavity: 0.82, sliding: 1.8, window: 1.2, opening: 1.2 };
+      const defaultWidth = (DEFAULT_WIDTH_M[stampType] || 1.2) * pixelsPerMetre;
       plans[activePlanIdx].stamps.push({
         type: stampType,
         x: bestSeg ? bestSeg.x : worldPt.x,
@@ -2139,6 +2142,29 @@
         ctx.fillStyle = '#e0f2fe'; ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 2;
         ctx.fillRect(-w / 2, -5, w, 10); ctx.strokeRect(-w / 2, -5, w, 10);
         ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0); ctx.stroke();
+      } else if (st.type === 'sliding') {
+        // Sliding door: gap in the wall with two overlapping panels
+        ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 14;
+        ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0); ctx.stroke();
+        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5;
+        const pw = w * 0.55;
+        ctx.fillRect(-w / 2, -4, pw, 3.5); ctx.strokeRect(-w / 2, -4, pw, 3.5);
+        ctx.fillRect(w / 2 - pw, 0.5, pw, 3.5); ctx.strokeRect(w / 2 - pw, 0.5, pw, 3.5);
+        ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-w / 2, -6); ctx.lineTo(-w / 2, 6); ctx.moveTo(w / 2, -6); ctx.lineTo(w / 2, 6); ctx.stroke();
+      } else if (st.type === 'cavity') {
+        // Cavity slider: door panel in the opening, dashed pocket inside the wall beside it
+        const dir = st.flipped ? -1 : 1;
+        ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 14;
+        ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0); ctx.stroke();
+        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]);
+        const px0 = dir === 1 ? w / 2 : -w * 1.5;
+        ctx.fillRect(px0, -3.5, w, 7); ctx.strokeRect(px0, -3.5, w, 7);
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5;
+        ctx.fillRect(-w / 2, -1.75, w, 3.5); ctx.strokeRect(-w / 2, -1.75, w, 3.5);
+        ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-w / 2, -6); ctx.lineTo(-w / 2, 6); ctx.moveTo(w / 2, -6); ctx.lineTo(w / 2, 6); ctx.stroke();
       } else if (st.type === 'opening') {
         ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 12;
         ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0); ctx.stroke();
