@@ -149,6 +149,9 @@
   }
 
   .tab-btn.active { background: var(--accent-active); color: #fff; }
+  .size-btn { background: transparent; border: none; color: var(--muted); padding: 4px 7px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; }
+  .size-btn.active { background: var(--accent-active); color: #fff; }
+  .size-label { font-size: 11px; color: var(--muted); padding: 0 4px 0 6px; align-self: center; }
 
   .slider-wrap {
     display: flex;
@@ -453,6 +456,13 @@
         <span class="autosave-dot" id="autoSaveDot"></span>
         <span id="autoSaveText">Saved</span>
       </span>
+      <div class="tabs" id="labelSizeTabs" title="Size of wall measurements">
+        <span class="size-label">Text</span>
+        <button class="size-btn" data-size="S">S</button>
+        <button class="size-btn active" data-size="M">M</button>
+        <button class="size-btn" data-size="L">L</button>
+        <button class="size-btn" data-size="XL">XL</button>
+      </div>
       <button class="btn toggle on" id="snapToggle" title="Keeps walls straight (90°) and joins them to other walls">Snap <span class="switch"></span></button>
       <button class="btn toggle on" id="penOnlyToggle" title="On: only the S Pen draws, fingers move the view">Pen only <span class="switch"></span></button>
       <button class="btn" id="resetViewBtn">Fit</button>
@@ -1823,6 +1833,19 @@
     applyZoomAroundScreenPt(cam.zoom * 0.8, window.innerWidth / 2, window.innerHeight / 2);
   });
 
+  const LABEL_SIZES = { S: 11, M: 14, L: 18, XL: 23 };
+  let labelSize = 'M';
+  try { const saved = localStorage.getItem('traceplan_label_size'); if (LABEL_SIZES[saved]) labelSize = saved; } catch (e) {}
+  document.querySelectorAll('#labelSizeTabs .size-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === labelSize);
+    btn.addEventListener('click', () => {
+      labelSize = btn.dataset.size;
+      document.querySelectorAll('#labelSizeTabs .size-btn').forEach(b => b.classList.toggle('active', b === btn));
+      try { localStorage.setItem('traceplan_label_size', labelSize); } catch (e) {}
+      render();
+    });
+  });
+
   function formatMetres(pxLen) { return (pxLen / pixelsPerMetre).toFixed(2) + 'm'; }
 
   function render(exportClean = false) {
@@ -1878,19 +1901,24 @@
       ctx.beginPath(); ctx.moveTo(wall.x1, wall.y1); ctx.lineTo(wall.x2, wall.y2); ctx.stroke();
 
       const pxLen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
-      if (pxLen > 32) {
+      if (pxLen * cam.zoom > 24) {
         const mx = (wall.x1 + wall.x2) / 2, my = (wall.y1 + wall.y2) / 2;
         let angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
         if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI;
         ctx.save(); ctx.translate(mx, my); ctx.rotate(angle); ctx.setLineDash([]);
+        // Measurements stay the same size on screen at any zoom (size picked in the top bar)
         const label = formatMetres(pxLen);
-        ctx.font = 'bold 11px sans-serif';
+        const fs = LABEL_SIZES[labelSize] / cam.zoom, pad = 3 / cam.zoom;
+        ctx.font = `bold ${fs}px sans-serif`;
         const tw = ctx.measureText(label).width;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
-        ctx.fillRect(-tw / 2 - 4, -20, tw + 8, 14);
-        ctx.fillStyle = wall.style === 'demo' ? '#dc2626' : '#0f172a';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(label, 0, -13);
+        if (tw + pad * 3 <= pxLen) { // hide if longer than the wall at this zoom
+          const boxH = fs + pad * 2, boxY = -6 - 2 / cam.zoom - boxH;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.fillRect(-tw / 2 - pad * 1.5, boxY, tw + pad * 3, boxH);
+          ctx.fillStyle = wall.style === 'demo' ? '#dc2626' : '#0f172a';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(label, 0, boxY + boxH / 2 + fs * 0.05);
+        }
         ctx.restore();
       }
 
