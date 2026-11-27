@@ -1392,7 +1392,9 @@
     { cat: 'Kitchen (METOD)', series: [
       { id: 'metod_base', title: 'METOD base cabinet', short: 'METOD base', d: 0.60, kind: 'base', widths: [20, 30, 40, 60, 80] },
       { id: 'metod_sink', title: 'METOD sink base cabinet', short: 'METOD sink', d: 0.60, kind: 'base', widths: [60, 80] },
-      { id: 'metod_corner', title: 'METOD corner base cabinet', short: 'METOD corner', d: 0.68, kind: 'base', widths: [128] },
+      { id: 'metod_corner_l', title: 'METOD corner base cabinet (L-shaped)', short: 'METOD corner', d: 0.88, arm: 0.60, shape: 'L', kind: 'base', widths: [88],
+        note: '88 × 88 cm footprint · 60 cm deep arms · rotate to fit your corner' },
+      { id: 'metod_corner', title: 'METOD corner base cabinet (blind corner)', short: 'METOD corner', d: 0.60, kind: 'base', widths: [128] },
       { id: 'metod_high', title: 'METOD high cabinet (pantry / oven)', short: 'METOD high', d: 0.60, kind: 'tall', widths: [40, 60] },
       { id: 'metod_wall', title: 'METOD wall cabinet (overhead)', short: 'METOD wall', d: 0.37, kind: 'wall', widths: [20, 30, 40, 60, 80] }
     ]},
@@ -1414,7 +1416,7 @@
   FURNITURE.forEach(c => c.items.forEach(it => { FURNITURE_BY_KEY[it.key] = it; }));
   IKEA_CABINETS.forEach(c => c.series.forEach(se => se.widths.forEach(cm => {
     const key = `${se.id}_${cm}`;
-    FURNITURE_BY_KEY[key] = { key, name: `${se.short} ${cm}`, w: cm / 100, d: se.d, kind: se.kind, cab: true };
+    FURNITURE_BY_KEY[key] = { key, name: `${se.short} ${cm}`, w: cm / 100, d: se.d, kind: se.kind, cab: true, shape: se.shape, arm: se.arm };
   })));
   let furnitureKey = 'bed_queen';
   let pickerTab = 'furniture';
@@ -1525,6 +1527,20 @@
       ctx.fillStyle = def.kind === 'wall' ? 'rgba(226, 232, 240, 0.55)' : 'rgba(226, 232, 240, 0.95)';
       ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
       if (def.kind === 'wall') ctx.setLineDash([5, 3]);
+      if (st.shape === 'L') {
+        // L-shaped corner unit: arms along the back and left side
+        const a = (st.arm || 0.6) * pixelsPerMetre;
+        ctx.beginPath();
+        ctx.moveTo(-w / 2, -d / 2); ctx.lineTo(w / 2, -d / 2); ctx.lineTo(w / 2, -d / 2 + a);
+        ctx.lineTo(-w / 2 + a, -d / 2 + a); ctx.lineTo(-w / 2 + a, d / 2); ctx.lineTo(-w / 2, d / 2);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        const lfs = Math.max(5, Math.min(11, a * 0.3));
+        ctx.fillStyle = '#1e293b'; ctx.font = `600 ${lfs}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(st.name, 0, -d / 2 + a / 2);
+        ctx.restore();
+        return;
+      }
       ctx.fillRect(-w / 2, -d / 2, w, d); ctx.strokeRect(-w / 2, -d / 2, w, d);
       ctx.setLineDash([]);
       if (def.kind === 'tall') {
@@ -1857,6 +1873,7 @@
         const def = getCurrentPiece();
         saveHistory();
         const item = { type: 'furniture', key: def.key, name: def.name, w: def.w, d: def.d, kind: def.kind, cab: !!def.cab, x: worldPt.x, y: worldPt.y, angle: 0 };
+        if (def.shape) { item.shape = def.shape; item.arm = def.arm; }
         snapPieceToWalls(item);
         plans[activePlanIdx].stamps.push(item);
         hit = { type: 'stamp', index: plans[activePlanIdx].stamps.length - 1, item, handle: 'body', historySaved: true };
@@ -2334,7 +2351,7 @@
       IKEA_CABINETS.forEach(group => {
         list.appendChild(el('div', 'furn-cat', group.cat));
         group.series.forEach(se => {
-          const card = el('div', 'cab-series', `<strong>${se.title}</strong><small>${Math.round(se.d * 100)} cm deep · ${CAB_KIND_LABEL[se.kind].toLowerCase()}</small>`);
+          const card = el('div', 'cab-series', `<strong>${se.title}</strong><small>${se.note || Math.round(se.d * 100) + ' cm deep · ' + CAB_KIND_LABEL[se.kind].toLowerCase()}</small>`);
           const widths = el('div', 'cab-widths');
           se.widths.forEach(cm => {
             const key = `${se.id}_${cm}`;
