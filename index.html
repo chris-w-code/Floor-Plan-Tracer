@@ -343,6 +343,19 @@
   .furn-item strong { font-size: 12.5px; }
   .furn-item small { font-size: 10.5px; color: var(--muted); }
   .furn-item.selected { border-color: #f59e0b; background: rgba(245, 158, 11, 0.15); }
+  .seg { display: flex; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 3px; margin-bottom: 10px; }
+  .seg button { flex: 1; background: transparent; border: none; color: var(--muted); padding: 7px 6px; border-radius: 8px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .seg button.active { background: var(--accent-active); color: #fff; }
+  .seg.small button { font-size: 11.5px; padding: 5px 6px; }
+  .cab-series { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(15, 23, 42, 0.55); margin-bottom: 6px; }
+  .cab-series strong { font-size: 12.5px; color: #e2e8f0; }
+  .cab-series small { display: block; font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+  .cab-widths { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+  .cab-w { background: rgba(51, 65, 85, 0.8); border: 1px solid var(--border); color: #e2e8f0; border-radius: 7px; padding: 5px 9px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+  .cab-w.selected { border-color: #f59e0b; background: rgba(245, 158, 11, 0.2); }
+  .field-row { display: flex; gap: 8px; }
+  .field-row label { flex: 1; font-size: 11px; color: var(--muted); font-weight: 600; }
+  .modal .field-row input { margin-top: 4px; margin-bottom: 10px; }
 
   .modal-backdrop {
     position: fixed;
@@ -591,10 +604,14 @@
 <div class="modal-backdrop" id="furnitureModal">
   <div class="modal">
     <h3>
-      <span>Choose Furniture</span>
+      <span>Furniture &amp; Cabinetry</span>
       <button class="btn" id="closeFurnitureBtn" style="padding:4px 8px;">✕</button>
     </h3>
-    <p>Standard sizes (width × depth). Set your Scale first so furniture is drawn at the right size.</p>
+    <p>Set your Scale first so pieces are drawn at the right size. With Snap on, pieces dragged near a wall sit flush against it.</p>
+    <div class="seg" id="pickerTabs">
+      <button data-tab="furniture">Furniture</button>
+      <button data-tab="cabinetry">Cabinetry</button>
+    </div>
     <div id="furnitureList"></div>
   </div>
 </div>
@@ -1370,11 +1387,119 @@
       { key: 'tub', name: 'Laundry tub', w: 0.60, d: 0.50 }
     ]}
   ];
+  // IKEA cabinet frame sizes (width options in cm, depth in metres)
+  const IKEA_CABINETS = [
+    { cat: 'Kitchen (METOD)', series: [
+      { id: 'metod_base', title: 'METOD base cabinet', short: 'METOD base', d: 0.60, kind: 'base', widths: [20, 30, 40, 60, 80] },
+      { id: 'metod_sink', title: 'METOD sink base cabinet', short: 'METOD sink', d: 0.60, kind: 'base', widths: [60, 80] },
+      { id: 'metod_corner', title: 'METOD corner base cabinet', short: 'METOD corner', d: 0.68, kind: 'base', widths: [128] },
+      { id: 'metod_high', title: 'METOD high cabinet (pantry / oven)', short: 'METOD high', d: 0.60, kind: 'tall', widths: [40, 60] },
+      { id: 'metod_wall', title: 'METOD wall cabinet (overhead)', short: 'METOD wall', d: 0.37, kind: 'wall', widths: [20, 30, 40, 60, 80] }
+    ]},
+    { cat: 'Wardrobes (PAX)', series: [
+      { id: 'pax', title: 'PAX wardrobe frame', short: 'PAX', d: 0.58, kind: 'tall', widths: [50, 75, 100] },
+      { id: 'pax_shallow', title: 'PAX wardrobe frame (shallow)', short: 'PAX shallow', d: 0.35, kind: 'tall', widths: [50, 75, 100] }
+    ]},
+    { cat: 'Living (BESTÅ)', series: [
+      { id: 'besta', title: 'BESTÅ storage / TV unit', short: 'BESTÅ', d: 0.40, kind: 'base', widths: [60, 120, 180] }
+    ]},
+    { cat: 'Bathroom (GODMORGON)', series: [
+      { id: 'godmorgon', title: 'GODMORGON vanity', short: 'GODMORGON', d: 0.47, kind: 'base', widths: [60, 80, 100, 120] }
+    ]}
+  ];
+  const CAB_KIND_LABEL = { base: 'Base', wall: 'Overhead', tall: 'Tall' };
+  const CAB_KIND_DEPTH = { base: 600, wall: 350, tall: 600 };
+
   const FURNITURE_BY_KEY = {};
   FURNITURE.forEach(c => c.items.forEach(it => { FURNITURE_BY_KEY[it.key] = it; }));
+  IKEA_CABINETS.forEach(c => c.series.forEach(se => se.widths.forEach(cm => {
+    const key = `${se.id}_${cm}`;
+    FURNITURE_BY_KEY[key] = { key, name: `${se.short} ${cm}`, w: cm / 100, d: se.d, kind: se.kind, cab: true };
+  })));
   let furnitureKey = 'bed_queen';
+  let pickerTab = 'furniture';
+  let cabMode = 'ikea';
+  let customCab = { kind: 'base', w: 600, d: 600, name: '' };
 
-  function fmtSize(it) { return `${it.w.toFixed(2)} × ${it.d.toFixed(2)} m`; }
+  // The piece that will be placed next
+  function getCurrentPiece() {
+    if (furnitureKey === 'custom') {
+      return { key: 'custom', name: customCab.name || `${CAB_KIND_LABEL[customCab.kind]} ${customCab.w}`,
+        w: customCab.w / 1000, d: customCab.d / 1000, kind: customCab.kind, cab: true };
+    }
+    return FURNITURE_BY_KEY[furnitureKey] || FURNITURE_BY_KEY.bed_queen;
+  }
+
+  function fmtSize(it) {
+    if (it.cab) return `${Math.round(it.w * 1000)} × ${Math.round(it.d * 1000)} mm`;
+    return `${it.w.toFixed(2)} × ${it.d.toFixed(2)} m`;
+  }
+
+  // With Snap on: sit a piece flush against a nearby wall (keeping its 90° turns),
+  // then butt it up against neighbouring pieces on the same wall.
+  function snapPieceToWalls(item) {
+    if (!snapEnabled || item.kind === 'round') return;
+    const p = plans[activePlanIdx];
+    const W = item.w * pixelsPerMetre, D = item.d * pixelsPerMetre;
+    const HALF_WALL = 5, tol = 18 / cam.zoom;
+    const extentAlong = (ang, theta, w, d) => {
+      const c = Math.abs(Math.cos(ang - theta)), sn = Math.abs(Math.sin(ang - theta));
+      return { u: c * w / 2 + sn * d / 2, n: sn * w / 2 + c * d / 2 };
+    };
+    let best = null, bestErr = tol;
+    for (const wl of p.walls) {
+      const len = Math.hypot(wl.x2 - wl.x1, wl.y2 - wl.y1);
+      if (len < 1) continue;
+      const ux = (wl.x2 - wl.x1) / len, uy = (wl.y2 - wl.y1) / len, nx = -uy, ny = ux;
+      const theta = Math.atan2(uy, ux);
+      const rx = item.x - wl.x1, ry = item.y - wl.y1;
+      const t = rx * ux + ry * uy, perp = rx * nx + ry * ny;
+      const k = Math.round(((item.angle || 0) - theta) / (Math.PI / 2));
+      const sideOn = Math.abs(k) % 2 === 1;
+      // Front/back against the wall: turn it so the back (bed head, sofa back, cabinet back) faces the wall
+      const ang = sideOn ? theta + k * Math.PI / 2 : (perp >= 0 ? theta : theta + Math.PI);
+      const ext = extentAlong(ang, theta, W, D);
+      if (t < -ext.u * 0.5 || t > len + ext.u * 0.5) continue;
+      const err = Math.abs(Math.abs(perp) - (HALF_WALL + ext.n));
+      if (err < bestErr) { bestErr = err; best = { wl, ux, uy, nx, ny, theta, t, s: perp >= 0 ? 1 : -1, ang, ext }; }
+    }
+    if (!best) return;
+    const { wl, ux, uy, nx, ny, theta, s, ang, ext } = best;
+    let t = best.t;
+    const off = s * (HALF_WALL + ext.n);
+    let bestGap = tol, shift = 0;
+    // Corners: also close the gap to a wall that runs across this one
+    const cx0 = wl.x1 + ux * t + nx * off, cy0 = wl.y1 + uy * t + ny * off;
+    for (const wb of p.walls) {
+      if (wb === wl) continue;
+      const lb = Math.hypot(wb.x2 - wb.x1, wb.y2 - wb.y1);
+      if (lb < 1) continue;
+      const bux = (wb.x2 - wb.x1) / lb, buy = (wb.y2 - wb.y1) / lb, bnx = -buy, bny = bux;
+      const sgn = bnx * ux + bny * uy;               // +-1 when the walls are at right angles
+      if (Math.abs(sgn) < 0.99) continue;
+      const tb = (cx0 - wb.x1) * bux + (cy0 - wb.y1) * buy;
+      if (tb < -ext.n || tb > lb + ext.n) continue;
+      const pc = (cx0 - wb.x1) * bnx + (cy0 - wb.y1) * bny;
+      const g = Math.abs(pc) - (HALF_WALL + ext.u);
+      if (Math.abs(g) < bestGap) { bestGap = Math.abs(g); shift = -Math.sign(pc) * g * Math.sign(sgn); }
+    }
+    // Neighbours on the same side of this wall (overheads only line up with overheads)
+    for (const o of p.stamps) {
+      if (o === item || o.type !== 'furniture' || o.kind === 'round') continue;
+      if ((o.kind === 'wall') !== (item.kind === 'wall')) continue;
+      const orx = o.x - wl.x1, ory = o.y - wl.y1;
+      const to = orx * ux + ory * uy, po = orx * nx + ory * ny;
+      const oe = extentAlong(o.angle || 0, theta, o.w * pixelsPerMetre, o.d * pixelsPerMetre);
+      if (Math.abs(po - off) > ext.n + oe.n) continue;
+      const g1 = (to - oe.u) - (t + ext.u), g2 = (t - ext.u) - (to + oe.u);
+      if (Math.abs(g1) < bestGap) { bestGap = Math.abs(g1); shift = g1; }
+      if (Math.abs(g2) < bestGap) { bestGap = Math.abs(g2); shift = -g2; }
+    }
+    t += shift;
+    item.angle = ((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    item.x = wl.x1 + ux * t + nx * off;
+    item.y = wl.y1 + uy * t + ny * off;
+  }
 
   // Find furniture under a point (works for rotated pieces)
   function hitFurniture(wx, wy) {
@@ -1393,8 +1518,32 @@
 
   function drawFurniture(st) {
     const w = st.w * pixelsPerMetre, d = st.d * pixelsPerMetre;
-    const def = FURNITURE_BY_KEY[st.key] || {};
+    const def = { kind: st.kind || (FURNITURE_BY_KEY[st.key] || {}).kind };
     ctx.save(); ctx.translate(st.x, st.y); ctx.rotate(st.angle || 0);
+    if (st.cab) {
+      // Cabinetry: grey boxes. Overhead = dashed, Tall = cross.
+      ctx.fillStyle = def.kind === 'wall' ? 'rgba(226, 232, 240, 0.55)' : 'rgba(226, 232, 240, 0.95)';
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
+      if (def.kind === 'wall') ctx.setLineDash([5, 3]);
+      ctx.fillRect(-w / 2, -d / 2, w, d); ctx.strokeRect(-w / 2, -d / 2, w, d);
+      ctx.setLineDash([]);
+      if (def.kind === 'tall') {
+        ctx.lineWidth = 0.8; ctx.beginPath();
+        ctx.moveTo(-w / 2, -d / 2); ctx.lineTo(w / 2, d / 2); ctx.moveTo(w / 2, -d / 2); ctx.lineTo(-w / 2, d / 2);
+        ctx.stroke();
+      }
+      const cfs = Math.max(5, Math.min(11, (w * 0.9) / Math.max(4, st.name.length * 0.58), d * 0.4));
+      ctx.fillStyle = '#1e293b'; ctx.font = `600 ${cfs}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (def.kind === 'tall') {
+        const tw = ctx.measureText(st.name).width;
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.95)'; ctx.fillRect(-tw / 2 - 2, -cfs * 0.65, tw + 4, cfs * 1.3);
+        ctx.fillStyle = '#1e293b';
+      }
+      ctx.fillText(st.name, 0, 0);
+      ctx.restore();
+      return;
+    }
     ctx.fillStyle = 'rgba(254, 243, 199, 0.92)'; ctx.strokeStyle = '#92400e'; ctx.lineWidth = 1.5;
     ctx.beginPath();
     if (def.kind === 'round') ctx.ellipse(0, 0, w / 2, d / 2, 0, 0, Math.PI * 2);
@@ -1434,10 +1583,13 @@
       const w = p.walls[i];
       if (Math.hypot(wx - w.x1, wy - w.y1) < tol) return { type: 'wall', index: i, item: w, handle: 'p1' };
       if (Math.hypot(wx - w.x2, wy - w.y2) < tol) return { type: 'wall', index: i, item: w, handle: 'p2' };
-      if (distToSegment(wx, wy, w.x1, w.y1, w.x2, w.y2).dist < tol) return { type: 'wall', index: i, item: w, handle: 'body' };
     }
     const furn = hitFurniture(wx, wy);
     if (furn) return furn;
+    for (let i = p.walls.length - 1; i >= 0; i--) {
+      const w = p.walls[i];
+      if (distToSegment(wx, wy, w.x1, w.y1, w.x2, w.y2).dist < tol) return { type: 'wall', index: i, item: w, handle: 'body' };
+    }
     for (let i = p.sketches.length - 1; i >= 0; i--) {
       const sk = p.sketches[i];
       for (const pt of sk.pts) {
@@ -1502,7 +1654,7 @@
         contextRow.appendChild(btn);
       });
     } else if (currentTool === 'furniture') {
-      const it = FURNITURE_BY_KEY[furnitureKey];
+      const it = getCurrentPiece();
       contextRow.appendChild(makeChip(`${it.name} · ${fmtSize(it)} ▾`, openFurniturePicker, 'active'));
       if (selectedItem && selectedItem.item.type === 'furniture') addStampActions(selectedItem.item);
       else contextRow.appendChild(makeHint('Tap the plan to place it'));
@@ -1702,9 +1854,10 @@
     } else if (currentTool === 'furniture') {
       let hit = hitFurniture(worldPt.x, worldPt.y);
       if (!hit) {
-        const def = FURNITURE_BY_KEY[furnitureKey];
+        const def = getCurrentPiece();
         saveHistory();
-        const item = { type: 'furniture', key: def.key, name: def.name, w: def.w, d: def.d, x: worldPt.x, y: worldPt.y, angle: 0 };
+        const item = { type: 'furniture', key: def.key, name: def.name, w: def.w, d: def.d, kind: def.kind, cab: !!def.cab, x: worldPt.x, y: worldPt.y, angle: 0 };
+        snapPieceToWalls(item);
         plans[activePlanIdx].stamps.push(item);
         hit = { type: 'stamp', index: plans[activePlanIdx].stamps.length - 1, item, handle: 'body', historySaved: true };
         scheduleAutoSave();
@@ -1788,6 +1941,7 @@
           selectedItem.item.x = snappedWall.x; selectedItem.item.y = snappedWall.y; selectedItem.item.angle = snappedWall.angle;
         } else {
           selectedItem.item.x = nx; selectedItem.item.y = ny;
+          if (selectedItem.item.type === 'furniture') snapPieceToWalls(selectedItem.item);
         }
       }
       render();
@@ -2134,28 +2288,110 @@
   });
 
   const furnitureModal = document.getElementById('furnitureModal');
-  function openFurniturePicker() {
+  function choosePiece(key) {
+    furnitureKey = key; selectedItem = null;
+    furnitureModal.style.display = 'none';
+    updateContextUI(); render();
+    showStatus(`${getCurrentPiece().name}: tap the plan to place it`);
+  }
+
+  function el(tag, cls, html) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+  }
+
+  function renderPicker() {
+    document.querySelectorAll('#pickerTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === pickerTab));
     const list = document.getElementById('furnitureList');
     list.innerHTML = '';
-    FURNITURE.forEach(group => {
-      const h = document.createElement('div'); h.className = 'furn-cat'; h.textContent = group.cat;
-      const grid = document.createElement('div'); grid.className = 'furn-grid';
-      group.items.forEach(it => {
-        const b = document.createElement('button');
-        b.className = 'furn-item' + (it.key === furnitureKey ? ' selected' : '');
-        b.innerHTML = `<strong>${it.name}</strong><small>${fmtSize(it)}</small>`;
-        b.onclick = () => {
-          furnitureKey = it.key; selectedItem = null;
-          furnitureModal.style.display = 'none';
-          updateContextUI(); render();
-          showStatus(`${it.name}: tap the plan to place it`);
-        };
-        grid.appendChild(b);
+
+    if (pickerTab === 'furniture') {
+      FURNITURE.forEach(group => {
+        const grid = el('div', 'furn-grid');
+        group.items.forEach(it => {
+          const b = el('button', 'furn-item' + (it.key === furnitureKey ? ' selected' : ''), `<strong>${it.name}</strong><small>${fmtSize(it)}</small>`);
+          b.onclick = () => choosePiece(it.key);
+          grid.appendChild(b);
+        });
+        list.append(el('div', 'furn-cat', group.cat), grid);
       });
-      list.append(h, grid);
+      return;
+    }
+
+    // Cabinetry: IKEA sizes or custom size
+    const modes = el('div', 'seg small');
+    [['ikea', 'IKEA sizes'], ['custom', 'Custom size']].forEach(([id, label]) => {
+      const b = el('button', cabMode === id ? 'active' : '', label);
+      b.onclick = () => { cabMode = id; renderPicker(); };
+      modes.appendChild(b);
     });
+    list.appendChild(modes);
+
+    if (cabMode === 'ikea') {
+      list.appendChild(el('div', 'param-hint', 'Cabinet frame sizes. Check exact sizes on the IKEA website before ordering.'));
+      IKEA_CABINETS.forEach(group => {
+        list.appendChild(el('div', 'furn-cat', group.cat));
+        group.series.forEach(se => {
+          const card = el('div', 'cab-series', `<strong>${se.title}</strong><small>${Math.round(se.d * 100)} cm deep · ${CAB_KIND_LABEL[se.kind].toLowerCase()}</small>`);
+          const widths = el('div', 'cab-widths');
+          se.widths.forEach(cm => {
+            const key = `${se.id}_${cm}`;
+            const b = el('button', 'cab-w' + (key === furnitureKey ? ' selected' : ''), `${cm} cm`);
+            b.onclick = () => choosePiece(key);
+            widths.appendChild(b);
+          });
+          card.appendChild(widths);
+          list.appendChild(card);
+        });
+      });
+      return;
+    }
+
+    // Custom size form
+    list.appendChild(el('div', 'furn-cat', 'Type'));
+    const kinds = el('div', 'seg small');
+    ['base', 'wall', 'tall'].forEach(k => {
+      const b = el('button', customCab.kind === k ? 'active' : '', CAB_KIND_LABEL[k]);
+      b.onclick = () => {
+        // Switch the default depth too, unless the user already typed their own
+        if (customCab.d === CAB_KIND_DEPTH[customCab.kind]) customCab.d = CAB_KIND_DEPTH[k];
+        customCab.kind = k; renderPicker();
+      };
+      kinds.appendChild(b);
+    });
+    list.appendChild(kinds);
+    list.appendChild(el('div', 'param-hint', 'Base = sits on the floor · Overhead = mounted above bench (shown dashed) · Tall = pantry / wardrobe (shown with a cross)'));
+    const row = el('div', 'field-row');
+    row.style.marginTop = '10px';
+    row.innerHTML = `<label>Width (mm)<input type="number" id="cabW" min="50" step="10" value="${customCab.w}"></label>
+                     <label>Depth (mm)<input type="number" id="cabD" min="50" step="10" value="${customCab.d}"></label>`;
+    list.appendChild(row);
+    const nameLabel = el('label', '', 'Name (optional)');
+    nameLabel.style.cssText = 'display:block; font-size:11px; color:var(--muted); font-weight:600;';
+    const nameInput = el('input');
+    nameInput.type = 'text'; nameInput.placeholder = `e.g. ${CAB_KIND_LABEL[customCab.kind]} ${customCab.w}`; nameInput.value = customCab.name;
+    nameInput.style.marginTop = '4px';
+    nameLabel.appendChild(nameInput);
+    list.appendChild(nameLabel);
+    const use = el('button', 'btn primary', 'Use this size');
+    use.style.width = '100%'; use.style.padding = '10px';
+    use.onclick = () => {
+      const wv = parseInt(document.getElementById('cabW').value, 10), dv = parseInt(document.getElementById('cabD').value, 10);
+      if (!(wv >= 50 && wv <= 10000 && dv >= 50 && dv <= 3000)) { showStatus('Enter a width and depth in millimetres (e.g. 600)'); return; }
+      customCab.w = wv; customCab.d = dv; customCab.name = nameInput.value.trim();
+      choosePiece('custom');
+    };
+    list.appendChild(use);
+  }
+
+  function openFurniturePicker() {
+    pickerTab = getCurrentPiece().cab ? 'cabinetry' : pickerTab;
+    renderPicker();
     furnitureModal.style.display = 'flex';
   }
+  document.querySelectorAll('#pickerTabs button').forEach(b => b.addEventListener('click', () => { pickerTab = b.dataset.tab; renderPicker(); }));
   document.getElementById('closeFurnitureBtn').addEventListener('click', () => { furnitureModal.style.display = 'none'; });
 
   const autoDrawModal = document.getElementById('autoDrawModal');
