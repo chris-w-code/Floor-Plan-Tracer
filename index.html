@@ -469,7 +469,7 @@
         <span class="autosave-dot" id="autoSaveDot"></span>
         <span id="autoSaveText">Saved</span>
       </span>
-      <div class="tabs" id="labelSizeTabs" title="Size of wall measurements">
+      <div class="tabs" id="labelSizeTabs" title="Size of wall measurements and room labels">
         <span class="size-label">Text</span>
         <button class="size-btn" data-size="S">S</button>
         <button class="size-btn active" data-size="M">M</button>
@@ -1422,9 +1422,15 @@
   let pickerTab = 'furniture';
   let cabMode = 'ikea';
   let customCab = { kind: 'base', w: 600, d: 600, name: '' };
+  let furnMode = 'standard';
+  let customFurn = { shape: 'rect', w: 1200, d: 600, name: '' };
 
   // The piece that will be placed next
   function getCurrentPiece() {
+    if (furnitureKey === 'customFurn') {
+      return { key: 'customFurn', name: customFurn.name || `Furniture ${customFurn.w}×${customFurn.d}`,
+        w: customFurn.w / 1000, d: customFurn.d / 1000, kind: customFurn.shape === 'round' ? 'round' : undefined };
+    }
     if (furnitureKey === 'custom') {
       return { key: 'custom', name: customCab.name || `${CAB_KIND_LABEL[customCab.kind]} ${customCab.w}`,
         w: customCab.w / 1000, d: customCab.d / 1000, kind: customCab.kind, cab: true };
@@ -1433,7 +1439,7 @@
   }
 
   function fmtSize(it) {
-    if (it.cab) return `${Math.round(it.w * 1000)} × ${Math.round(it.d * 1000)} mm`;
+    if (it.cab || it.key === 'customFurn') return `${Math.round(it.w * 1000)} × ${Math.round(it.d * 1000)} mm`;
     return `${it.w.toFixed(2)} × ${it.d.toFixed(2)} m`;
   }
 
@@ -1518,6 +1524,15 @@
     return null;
   }
 
+  // Draw a piece's name so it never reads upside down, whichever way the piece faces
+  function uprightText(st, ty) {
+    const a = (((st.angle || 0) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    ctx.save(); ctx.translate(0, ty);
+    if (a > Math.PI / 2 + 0.01 && a < Math.PI * 1.5 + 0.01) ctx.rotate(Math.PI);
+    ctx.fillText(st.name, 0, 0);
+    ctx.restore();
+  }
+
   function drawFurniture(st) {
     const w = st.w * pixelsPerMetre, d = st.d * pixelsPerMetre;
     const def = { kind: st.kind || (FURNITURE_BY_KEY[st.key] || {}).kind };
@@ -1537,7 +1552,7 @@
         const lfs = Math.max(5, Math.min(11, a * 0.3));
         ctx.fillStyle = '#1e293b'; ctx.font = `600 ${lfs}px sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(st.name, 0, -d / 2 + a / 2);
+        uprightText(st, -d / 2 + a / 2);
         ctx.restore();
         return;
       }
@@ -1556,7 +1571,7 @@
         ctx.fillStyle = 'rgba(226, 232, 240, 0.95)'; ctx.fillRect(-tw / 2 - 2, -cfs * 0.65, tw + 4, cfs * 1.3);
         ctx.fillStyle = '#1e293b';
       }
-      ctx.fillText(st.name, 0, 0);
+      uprightText(st, 0);
       ctx.restore();
       return;
     }
@@ -1581,7 +1596,7 @@
     const fs = Math.max(6, Math.min(12, (w * 0.9) / Math.max(4, st.name.length * 0.58)));
     ctx.fillStyle = '#78350f'; ctx.font = `600 ${fs}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(st.name, 0, def.kind === 'sofa' ? d * 0.12 : 0);
+    uprightText(st, def.kind === 'sofa' ? d * 0.12 : 0);
     ctx.restore();
   }
 
@@ -1591,7 +1606,8 @@
     for (let i = p.stamps.length - 1; i >= 0; i--) {
       const s = p.stamps[i];
       if (s.type === 'furniture') continue;
-      if (Math.hypot(wx - s.x, wy - s.y) < Math.max(tol, (s.width || 45) * 0.5)) {
+      const r = s.type === 'label' ? (s.text.length * roomLabelPx() * 0.32 + 8) / cam.zoom : (s.width || 45) * 0.5;
+      if (Math.hypot(wx - s.x, wy - s.y) < Math.max(tol, r)) {
         return { type: 'stamp', index: i, item: s, handle: 'body' };
       }
     }
@@ -2017,6 +2033,8 @@
     });
   });
 
+  function roomLabelPx() { return Math.round(LABEL_SIZES[labelSize] * 1.15); }
+
   function formatMetres(pxLen) { return (pxLen / pixelsPerMetre).toFixed(2) + 'm'; }
 
   function render(exportClean = false) {
@@ -2127,10 +2145,12 @@
         ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(-w / 2, -6); ctx.lineTo(-w / 2, 6); ctx.moveTo(w / 2, -6); ctx.lineTo(w / 2, 6); ctx.stroke();
       } else if (st.type === 'label') {
-        ctx.font = 'bold 14px sans-serif';
+        // Room labels follow the Text size picker and stay readable at any zoom
+        const fs = roomLabelPx() / cam.zoom, px = fs * 0.55, py = fs * 0.4;
+        ctx.font = `bold ${fs}px sans-serif`;
         const tw = ctx.measureText(st.text).width;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
-        ctx.fillRect(-tw / 2 - 8, -12, tw + 16, 24); ctx.strokeRect(-tw / 2 - 8, -12, tw + 16, 24);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1 / cam.zoom;
+        ctx.fillRect(-tw / 2 - px, -fs / 2 - py, tw + px * 2, fs + py * 2); ctx.strokeRect(-tw / 2 - px, -fs / 2 - py, tw + px * 2, fs + py * 2);
         ctx.fillStyle = '#0f172a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(st.text, 0, 0);
       }
@@ -2319,12 +2339,55 @@
     return e;
   }
 
+  function makeModeSwitch(options, current, onPick) {
+    const seg = el('div', 'seg small');
+    options.forEach(([id, label]) => {
+      const b = el('button', current === id ? 'active' : '', label);
+      b.onclick = () => onPick(id);
+      seg.appendChild(b);
+    });
+    return seg;
+  }
+
+  // Width / depth (mm) / name fields + "Use this size" button, shared by custom furniture and cabinetry
+  function appendSizeFields(list, target, placeholder, keyToUse) {
+    const row = el('div', 'field-row');
+    row.style.marginTop = '10px';
+    row.innerHTML = `<label>Width (mm)<input type="number" id="sizeW" min="50" step="10" value="${target.w}"></label>
+                     <label>Depth (mm)<input type="number" id="sizeD" min="50" step="10" value="${target.d}"></label>`;
+    list.appendChild(row);
+    const nameLabel = el('label', '', 'Name (optional)');
+    nameLabel.style.cssText = 'display:block; font-size:11px; color:var(--muted); font-weight:600;';
+    const nameInput = el('input');
+    nameInput.type = 'text'; nameInput.placeholder = placeholder; nameInput.value = target.name;
+    nameInput.style.marginTop = '4px';
+    nameLabel.appendChild(nameInput);
+    list.appendChild(nameLabel);
+    const use = el('button', 'btn primary', 'Use this size');
+    use.style.width = '100%'; use.style.padding = '10px';
+    use.onclick = () => {
+      const wv = parseInt(document.getElementById('sizeW').value, 10), dv = parseInt(document.getElementById('sizeD').value, 10);
+      if (!(wv >= 50 && wv <= 10000 && dv >= 50 && dv <= 10000)) { showStatus('Enter a width and depth in millimetres (e.g. 600)'); return; }
+      target.w = wv; target.d = dv; target.name = nameInput.value.trim();
+      choosePiece(keyToUse);
+    };
+    list.appendChild(use);
+  }
+
   function renderPicker() {
     document.querySelectorAll('#pickerTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === pickerTab));
     const list = document.getElementById('furnitureList');
     list.innerHTML = '';
 
     if (pickerTab === 'furniture') {
+      list.appendChild(makeModeSwitch([['standard', 'Standard sizes'], ['custom', 'Custom size']], furnMode, id => { furnMode = id; renderPicker(); }));
+      if (furnMode === 'custom') {
+        list.appendChild(el('div', 'furn-cat', 'Shape'));
+        list.appendChild(makeModeSwitch([['rect', 'Rectangle'], ['round', 'Round / oval']], customFurn.shape, id => { customFurn.shape = id; renderPicker(); }));
+        list.appendChild(el('div', 'param-hint', 'Any piece not in the list, e.g. an outdoor setting, piano or modular sofa. Shown in yellow like other furniture.'));
+        appendSizeFields(list, customFurn, 'e.g. Piano', 'customFurn');
+        return;
+      }
       FURNITURE.forEach(group => {
         const grid = el('div', 'furn-grid');
         group.items.forEach(it => {
@@ -2380,31 +2443,14 @@
     });
     list.appendChild(kinds);
     list.appendChild(el('div', 'param-hint', 'Base = sits on the floor · Overhead = mounted above bench (shown dashed) · Tall = pantry / wardrobe (shown with a cross)'));
-    const row = el('div', 'field-row');
-    row.style.marginTop = '10px';
-    row.innerHTML = `<label>Width (mm)<input type="number" id="cabW" min="50" step="10" value="${customCab.w}"></label>
-                     <label>Depth (mm)<input type="number" id="cabD" min="50" step="10" value="${customCab.d}"></label>`;
-    list.appendChild(row);
-    const nameLabel = el('label', '', 'Name (optional)');
-    nameLabel.style.cssText = 'display:block; font-size:11px; color:var(--muted); font-weight:600;';
-    const nameInput = el('input');
-    nameInput.type = 'text'; nameInput.placeholder = `e.g. ${CAB_KIND_LABEL[customCab.kind]} ${customCab.w}`; nameInput.value = customCab.name;
-    nameInput.style.marginTop = '4px';
-    nameLabel.appendChild(nameInput);
-    list.appendChild(nameLabel);
-    const use = el('button', 'btn primary', 'Use this size');
-    use.style.width = '100%'; use.style.padding = '10px';
-    use.onclick = () => {
-      const wv = parseInt(document.getElementById('cabW').value, 10), dv = parseInt(document.getElementById('cabD').value, 10);
-      if (!(wv >= 50 && wv <= 10000 && dv >= 50 && dv <= 3000)) { showStatus('Enter a width and depth in millimetres (e.g. 600)'); return; }
-      customCab.w = wv; customCab.d = dv; customCab.name = nameInput.value.trim();
-      choosePiece('custom');
-    };
-    list.appendChild(use);
+    appendSizeFields(list, customCab, `e.g. ${CAB_KIND_LABEL[customCab.kind]} ${customCab.w}`, 'custom');
   }
 
   function openFurniturePicker() {
-    pickerTab = getCurrentPiece().cab ? 'cabinetry' : pickerTab;
+    const cur = getCurrentPiece();
+    pickerTab = cur.cab ? 'cabinetry' : 'furniture';
+    if (furnitureKey === 'customFurn') furnMode = 'custom';
+    if (furnitureKey === 'custom') cabMode = 'custom';
     renderPicker();
     furnitureModal.style.display = 'flex';
   }
