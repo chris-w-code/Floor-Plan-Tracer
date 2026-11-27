@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f172a">
-<title>TracePlan — Stylus Floorplan Studio v5 (Persistent PWA)</title>
+<title>TracePlan</title>
 <link id="pwaManifest" rel="manifest" href="">
 <style>
   :root {
@@ -261,7 +261,7 @@
     box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
   }
 
-  .tool-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .tool-row { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
 
   .tool-btn {
     background: rgba(51, 65, 85, 0.45);
@@ -291,7 +291,7 @@
   }
 
   .tool-btn.active { background: rgba(56, 189, 248, 0.18); border-color: var(--accent); color: #fff; }
-  .tool-btn.magic-tool { color: #d8b4fe; border-color: rgba(168, 85, 247, 0.3); }
+  .tool-btn.magic-tool { color: #d8b4fe; }
   .tool-btn.magic-tool.active { background: rgba(168, 85, 247, 0.25); border-color: #c084fc; color: #fff; }
 
   .context-row {
@@ -299,8 +299,8 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding-top: 4px;
-    border-top: 1px solid var(--border);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
   }
 
@@ -320,6 +320,26 @@
 
   .chip.active { background: var(--accent-active); color: #fff; border-color: var(--accent); }
   .swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .chip.danger { color: #fca5a5; }
+  .chip-hint { font-size: 11px; color: var(--muted); }
+
+  /* On/off switches (Snap, Pen only) look different from normal action buttons */
+  .btn.toggle { gap: 6px; }
+  .switch { width: 24px; height: 14px; border-radius: 999px; background: #475569; position: relative; transition: background 0.15s; }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; transition: left 0.15s; }
+  .btn.toggle.on .switch { background: var(--success); }
+  .btn.toggle.on .switch::after { left: 12px; background: #fff; }
+
+  .furn-cat { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 10px 0 6px; }
+  .furn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .furn-item {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+    padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: rgba(15, 23, 42, 0.55); color: #e2e8f0; font: inherit; cursor: pointer;
+  }
+  .furn-item strong { font-size: 12.5px; }
+  .furn-item small { font-size: 10.5px; color: var(--muted); }
+  .furn-item.selected { border-color: #f59e0b; background: rgba(245, 158, 11, 0.15); }
 
   .modal-backdrop {
     position: fixed;
@@ -406,10 +426,6 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/></svg>
         AutoDraw
       </button>
-      <button class="btn" id="undoBtn" title="Undo Last Action">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-        Undo
-      </button>
       <input type="file" id="fileInput" accept="image/*">
       <input type="file" id="projectFileInput" accept=".json,application/json">
     </div>
@@ -427,7 +443,7 @@
 
   <div class="sub-bar">
     <div class="slider-wrap">
-      <span style="color:var(--muted); white-space:nowrap;">Bg:</span>
+      <span style="color:var(--muted); white-space:nowrap;">Photo</span>
       <input type="range" id="bgOpacitySlider" min="0" max="100" value="40">
       <span id="bgOpacityVal" style="min-width:26px">40%</span>
     </div>
@@ -437,13 +453,13 @@
         <span class="autosave-dot" id="autoSaveDot"></span>
         <span id="autoSaveText">Saved</span>
       </span>
-      <button class="btn active" id="snapToggle" title="Keeps walls straight (90°) and joins them to other walls">Snap</button>
-      <button class="btn active" id="penOnlyToggle">S-Pen</button>
+      <button class="btn toggle on" id="snapToggle" title="Keeps walls straight (90°) and joins them to other walls">Snap <span class="switch"></span></button>
+      <button class="btn toggle on" id="penOnlyToggle" title="On: only the S Pen draws, fingers move the view">Pen only <span class="switch"></span></button>
       <button class="btn" id="resetViewBtn">Fit</button>
     </div>
   </div>
 
-  <div class="status-pill" id="statusPill">Auto-save active • All walls & photos persist on this device</div>
+  <div class="status-pill" id="statusPill">Your work saves automatically on this device</div>
 </div>
 
 <div class="side-dock">
@@ -481,6 +497,10 @@
       <svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V8a12 12 0 0 1 12 12"/></svg>
       Doors
     </button>
+    <button class="tool-btn" data-tool="furniture">
+      <svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M6 9V6h12v3"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>
+      Furniture
+    </button>
     <button class="tool-btn" data-tool="sketch">
       <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
       Sketch
@@ -506,7 +526,7 @@
       <span>Saved Floorplan Projects</span>
       <button class="btn" id="closeProjectsBtn" style="padding:4px 8px;">✕</button>
     </h3>
-    <p>Your work auto-saves to your phone's internal database (`IndexedDB`) after every stroke. You can also save multiple properties or export `.json` backup files.</p>
+    <p>Your work saves automatically on this device. You can keep several properties here, or download a backup file to keep somewhere safe.</p>
 
     <div style="display:flex; gap:6px; margin-bottom:10px;">
       <input type="text" id="projectNameInput" placeholder="Project Name (e.g. 14 Cronulla St)" style="margin-bottom:0; flex:1;">
@@ -555,6 +575,17 @@
         <button class="btn magic" id="runAutoDrawAddBtn">+ Add</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="furnitureModal">
+  <div class="modal">
+    <h3>
+      <span>Choose Furniture</span>
+      <button class="btn" id="closeFurnitureBtn" style="padding:4px 8px;">✕</button>
+    </h3>
+    <p>Standard sizes (width × depth). Set your Scale first so furniture is drawn at the right size.</p>
+    <div id="furnitureList"></div>
   </div>
 </div>
 
@@ -1180,7 +1211,12 @@
     showStatus(`Magic Room traced: ${((x2 - x1) / pixelsPerMetre).toFixed(2)}m × ${((y2 - y1) / pixelsPerMetre).toFixed(2)}m`);
   }
 
-  function showStatus(msg) { statusPill.textContent = msg; statusPill.style.opacity = '1'; }
+  let statusTimer = null;
+  function showStatus(msg) {
+    statusPill.textContent = msg; statusPill.style.opacity = '1';
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { statusPill.style.opacity = '0'; }, 4000);
+  }
 
   function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
@@ -1280,11 +1316,106 @@
     return { dist: Math.hypot(px - xx, py - yy), x: xx, y: yy, angle: Math.atan2(D, C) };
   }
 
+  // Standard furniture sizes in metres (w = width, d = depth)
+  const FURNITURE = [
+    { cat: 'Bedroom', items: [
+      { key: 'bed_single', name: 'Single bed', w: 0.92, d: 1.88, kind: 'bed' },
+      { key: 'bed_ksingle', name: 'King single bed', w: 1.07, d: 2.03, kind: 'bed' },
+      { key: 'bed_double', name: 'Double bed', w: 1.38, d: 1.88, kind: 'bed2' },
+      { key: 'bed_queen', name: 'Queen bed', w: 1.53, d: 2.03, kind: 'bed2' },
+      { key: 'bed_king', name: 'King bed', w: 1.83, d: 2.03, kind: 'bed2' },
+      { key: 'bedside', name: 'Bedside table', w: 0.45, d: 0.40 },
+      { key: 'wardrobe', name: 'Wardrobe', w: 1.20, d: 0.60 },
+      { key: 'drawers', name: 'Chest of drawers', w: 0.90, d: 0.50 },
+      { key: 'desk', name: 'Desk', w: 1.20, d: 0.60 }
+    ]},
+    { cat: 'Living', items: [
+      { key: 'sofa3', name: '3-seat sofa', w: 2.10, d: 0.90, kind: 'sofa' },
+      { key: 'sofa2', name: '2-seat sofa', w: 1.60, d: 0.90, kind: 'sofa' },
+      { key: 'armchair', name: 'Armchair', w: 0.85, d: 0.85, kind: 'sofa' },
+      { key: 'coffee', name: 'Coffee table', w: 1.20, d: 0.60 },
+      { key: 'tv', name: 'TV unit', w: 1.80, d: 0.45 },
+      { key: 'bookcase', name: 'Bookcase', w: 0.90, d: 0.35 }
+    ]},
+    { cat: 'Dining', items: [
+      { key: 'dining4', name: 'Dining table (4)', w: 1.20, d: 0.80 },
+      { key: 'dining6', name: 'Dining table (6)', w: 1.80, d: 0.90 },
+      { key: 'round4', name: 'Round table (4)', w: 1.00, d: 1.00, kind: 'round' },
+      { key: 'chair', name: 'Dining chair', w: 0.45, d: 0.50 }
+    ]},
+    { cat: 'Kitchen', items: [
+      { key: 'fridge', name: 'Fridge', w: 0.90, d: 0.70 },
+      { key: 'oven', name: 'Oven / cooktop', w: 0.60, d: 0.60 },
+      { key: 'dishwasher', name: 'Dishwasher', w: 0.60, d: 0.60 },
+      { key: 'sink', name: 'Sink unit', w: 0.90, d: 0.60 },
+      { key: 'island', name: 'Island bench', w: 2.00, d: 0.90 }
+    ]},
+    { cat: 'Bathroom & Laundry', items: [
+      { key: 'toilet', name: 'Toilet', w: 0.40, d: 0.70 },
+      { key: 'vanity', name: 'Vanity', w: 0.90, d: 0.46 },
+      { key: 'shower', name: 'Shower', w: 0.90, d: 0.90 },
+      { key: 'bath', name: 'Bath', w: 1.70, d: 0.75 },
+      { key: 'washer', name: 'Washing machine', w: 0.60, d: 0.60 },
+      { key: 'dryer', name: 'Dryer', w: 0.60, d: 0.60 },
+      { key: 'tub', name: 'Laundry tub', w: 0.60, d: 0.50 }
+    ]}
+  ];
+  const FURNITURE_BY_KEY = {};
+  FURNITURE.forEach(c => c.items.forEach(it => { FURNITURE_BY_KEY[it.key] = it; }));
+  let furnitureKey = 'bed_queen';
+
+  function fmtSize(it) { return `${it.w.toFixed(2)} × ${it.d.toFixed(2)} m`; }
+
+  // Find furniture under a point (works for rotated pieces)
+  function hitFurniture(wx, wy) {
+    const p = plans[activePlanIdx];
+    for (let i = p.stamps.length - 1; i >= 0; i--) {
+      const s = p.stamps[i];
+      if (s.type !== 'furniture') continue;
+      const a = -(s.angle || 0), dx = wx - s.x, dy = wy - s.y;
+      const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+      if (Math.abs(lx) <= s.w * pixelsPerMetre / 2 && Math.abs(ly) <= s.d * pixelsPerMetre / 2) {
+        return { type: 'stamp', index: i, item: s, handle: 'body' };
+      }
+    }
+    return null;
+  }
+
+  function drawFurniture(st) {
+    const w = st.w * pixelsPerMetre, d = st.d * pixelsPerMetre;
+    const def = FURNITURE_BY_KEY[st.key] || {};
+    ctx.save(); ctx.translate(st.x, st.y); ctx.rotate(st.angle || 0);
+    ctx.fillStyle = 'rgba(254, 243, 199, 0.92)'; ctx.strokeStyle = '#92400e'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (def.kind === 'round') ctx.ellipse(0, 0, w / 2, d / 2, 0, 0, Math.PI * 2);
+    else ctx.rect(-w / 2, -d / 2, w, d);
+    ctx.fill(); ctx.stroke();
+    // Simple details so pieces are recognisable
+    ctx.lineWidth = 1;
+    if (def.kind === 'bed' || def.kind === 'bed2') {
+      const ph = Math.min(d * 0.13, 0.3 * pixelsPerMetre), pad = w * 0.08;
+      if (def.kind === 'bed') ctx.strokeRect(-w / 2 + pad, -d / 2 + pad * 0.6, w - pad * 2, ph);
+      else {
+        const pw = (w - pad * 3) / 2;
+        ctx.strokeRect(-w / 2 + pad, -d / 2 + pad * 0.6, pw, ph);
+        ctx.strokeRect(-w / 2 + pad * 2 + pw, -d / 2 + pad * 0.6, pw, ph);
+      }
+    } else if (def.kind === 'sofa') {
+      ctx.strokeRect(-w / 2, -d / 2, w, d * 0.25);
+    }
+    const fs = Math.max(6, Math.min(12, (w * 0.9) / Math.max(4, st.name.length * 0.58)));
+    ctx.fillStyle = '#78350f'; ctx.font = `600 ${fs}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(st.name, 0, def.kind === 'sofa' ? d * 0.12 : 0);
+    ctx.restore();
+  }
+
   function hitTest(wx, wy) {
     const p = plans[activePlanIdx];
     const tol = 18 / cam.zoom;
     for (let i = p.stamps.length - 1; i >= 0; i--) {
       const s = p.stamps[i];
+      if (s.type === 'furniture') continue;
       if (Math.hypot(wx - s.x, wy - s.y) < Math.max(tol, (s.width || 45) * 0.5)) {
         return { type: 'stamp', index: i, item: s, handle: 'body' };
       }
@@ -1295,6 +1426,8 @@
       if (Math.hypot(wx - w.x2, wy - w.y2) < tol) return { type: 'wall', index: i, item: w, handle: 'p2' };
       if (distToSegment(wx, wy, w.x1, w.y1, w.x2, w.y2).dist < tol) return { type: 'wall', index: i, item: w, handle: 'body' };
     }
+    const furn = hitFurniture(wx, wy);
+    if (furn) return furn;
     for (let i = p.sketches.length - 1; i >= 0; i--) {
       const sk = p.sketches[i];
       for (const pt of sk.pts) {
@@ -1321,7 +1454,7 @@
     } else if (currentTool === 'magicroom') {
       const info = document.createElement('span');
       info.style.fontSize = '11px'; info.style.color = '#d8b4fe';
-      info.textContent = 'Tap inside any room on your photo — 4 walls will auto-snap to its boundaries!';
+      info.textContent = 'Tap inside a room on your photo to trace its walls.';
       const fullBtn = document.createElement('button');
       fullBtn.className = 'chip active'; fullBtn.style.background = '#7e22ce';
       fullBtn.textContent = 'AutoDraw Whole Plan...';
@@ -1340,6 +1473,11 @@
         btn.onclick = () => { stampType = st.id; updateContextUI(); };
         contextRow.appendChild(btn);
       });
+      if (selectedItem && selectedItem.type === 'stamp' && selectedItem.item.type !== 'label') {
+        const br = document.createElement('div'); br.style.flexBasis = '100%'; br.style.height = '0';
+        contextRow.appendChild(br);
+        addStampActions(selectedItem.item);
+      }
     } else if (currentTool === 'sketch') {
       [
         { c: '#0284c7', name: 'Blue' },
@@ -1353,36 +1491,30 @@
         btn.onclick = () => { sketchColor = col.c; updateContextUI(); };
         contextRow.appendChild(btn);
       });
+    } else if (currentTool === 'furniture') {
+      const it = FURNITURE_BY_KEY[furnitureKey];
+      contextRow.appendChild(makeChip(`${it.name} · ${fmtSize(it)} ▾`, openFurniturePicker, 'active'));
+      if (selectedItem && selectedItem.item.type === 'furniture') addStampActions(selectedItem.item);
+      else contextRow.appendChild(makeHint('Tap the plan to place it'));
     } else if (currentTool === 'select') {
       if (selectedItem && selectedItem.type === 'stamp') {
-        const rotBtn = document.createElement('button');
-        rotBtn.className = 'chip active'; rotBtn.textContent = 'Rotate 90°';
-        rotBtn.onclick = () => { saveHistory(); selectedItem.item.angle = (selectedItem.item.angle || 0) + Math.PI / 2; render(); scheduleAutoSave(); };
-        const flipBtn = document.createElement('button');
-        flipBtn.className = 'chip'; flipBtn.textContent = 'Flip Swing';
-        flipBtn.onclick = () => { saveHistory(); selectedItem.item.flipped = !selectedItem.item.flipped; render(); scheduleAutoSave(); };
-        const delBtn = document.createElement('button');
-        delBtn.className = 'chip'; delBtn.style.color = '#fca5a5'; delBtn.textContent = 'Delete';
-        delBtn.onclick = deleteSelected;
-        contextRow.append(rotBtn, flipBtn, delBtn);
+        addStampActions(selectedItem.item);
       } else if (selectedItem && selectedItem.type === 'wall') {
-        const styleBtn = document.createElement('button');
-        styleBtn.className = 'chip'; styleBtn.textContent = 'Cycle Type (Solid/New/Demo)';
-        styleBtn.onclick = () => {
-          saveHistory();
-          const order = ['existing', 'new', 'demo'];
-          selectedItem.item.style = order[(order.indexOf(selectedItem.item.style) + 1) % order.length];
-          render(); scheduleAutoSave();
-        };
-        const delBtn = document.createElement('button');
-        delBtn.className = 'chip'; delBtn.style.color = '#fca5a5'; delBtn.textContent = 'Delete Wall';
-        delBtn.onclick = deleteSelected;
-        contextRow.append(styleBtn, delBtn);
+        [
+          { id: 'existing', label: 'Solid', color: '#1e293b' },
+          { id: 'new', label: 'New', color: '#0284c7' },
+          { id: 'demo', label: 'Demolish', color: '#ef4444' }
+        ].forEach(st => {
+          const btn = makeChip(`<span class="swatch" style="background:${st.color}"></span>${st.label}`, () => {
+            if (selectedItem.item.style === st.id) return;
+            saveHistory(); selectedItem.item.style = st.id;
+            updateContextUI(); render(); scheduleAutoSave();
+          }, selectedItem.item.style === st.id ? 'active' : '', true);
+          contextRow.appendChild(btn);
+        });
+        contextRow.appendChild(makeChip('Delete', deleteSelected, 'danger'));
       } else {
-        const info = document.createElement('span');
-        info.style.fontSize = '11px'; info.style.color = 'var(--muted)';
-        info.textContent = 'Tap any wall corner, wall segment, or door to move or modify it.';
-        contextRow.appendChild(info);
+        contextRow.appendChild(makeHint('Tap a wall, door or piece of furniture to move or change it.'));
       }
     } else if (currentTool === 'scale') {
       const info = document.createElement('span');
@@ -1394,12 +1526,44 @@
       clearBtn.className = 'chip'; clearBtn.style.color = '#fca5a5';
       clearBtn.textContent = 'Clear All in ' + plans[activePlanIdx].name;
       clearBtn.onclick = () => {
+        if (!confirm('Remove all walls, doors, furniture and sketches from ' + plans[activePlanIdx].name + '? (You can Undo this.)')) return;
         saveHistory();
         plans[activePlanIdx].walls = []; plans[activePlanIdx].stamps = []; plans[activePlanIdx].sketches = [];
         render(); scheduleAutoSave(); showStatus('Cleared ' + plans[activePlanIdx].name);
       };
       contextRow.appendChild(clearBtn);
     }
+  }
+
+  function makeChip(label, onClick, extraClass = '', html = false) {
+    const btn = document.createElement('button');
+    btn.className = 'chip ' + extraClass;
+    if (html) btn.innerHTML = label; else btn.textContent = label;
+    btn.onclick = onClick;
+    return btn;
+  }
+  function makeHint(text) {
+    const span = document.createElement('span');
+    span.className = 'chip-hint'; span.textContent = text;
+    return span;
+  }
+
+  // Buttons for a selected door / window / label / furniture piece.
+  // Rotate is a normal press-again button (turns 90° each press), not an on/off toggle.
+  function addStampActions(item) {
+    if (item.type !== 'label') {
+      contextRow.appendChild(makeChip('↻ Rotate 90°', () => {
+        saveHistory();
+        item.angle = ((item.angle || 0) + Math.PI / 2) % (Math.PI * 2);
+        render(); scheduleAutoSave();
+      }));
+    }
+    if (item.type === 'door') {
+      contextRow.appendChild(makeChip('⇅ Flip swing', () => {
+        saveHistory(); item.flipped = !item.flipped; render(); scheduleAutoSave();
+      }));
+    }
+    contextRow.appendChild(makeChip('Delete', deleteSelected, 'danger'));
   }
 
   function deleteSelected() {
@@ -1523,8 +1687,25 @@
         flipped: false
       });
       selectedItem = { type: 'stamp', index: plans[activePlanIdx].stamps.length - 1, item: plans[activePlanIdx].stamps[plans[activePlanIdx].stamps.length - 1], handle: 'body' };
-      render(); scheduleAutoSave();
-      showStatus('Placed ' + stampType + ' (Auto-saved)');
+      updateContextUI(); render(); scheduleAutoSave();
+      showStatus('Placed ' + stampType + ' — use Rotate or Flip below to adjust');
+    } else if (currentTool === 'furniture') {
+      let hit = hitFurniture(worldPt.x, worldPt.y);
+      if (!hit) {
+        const def = FURNITURE_BY_KEY[furnitureKey];
+        saveHistory();
+        const item = { type: 'furniture', key: def.key, name: def.name, w: def.w, d: def.d, x: worldPt.x, y: worldPt.y, angle: 0 };
+        plans[activePlanIdx].stamps.push(item);
+        hit = { type: 'stamp', index: plans[activePlanIdx].stamps.length - 1, item, handle: 'body', historySaved: true };
+        scheduleAutoSave();
+        showStatus(`Placed ${def.name} — drag to move it`);
+      } else {
+        hit.historySaved = false;
+      }
+      hit.startWx = worldPt.x; hit.startWy = worldPt.y;
+      hit.orig = { x: hit.item.x, y: hit.item.y };
+      selectedItem = hit;
+      updateContextUI(); render();
     } else if (currentTool === 'select') {
       const hit = hitTest(worldPt.x, worldPt.y);
       selectedItem = hit;
@@ -1568,7 +1749,7 @@
       draftScaleLine.x2 = worldPt.x; draftScaleLine.y2 = worldPt.y; render();
     } else if (draftSketch) {
       draftSketch.pts.push({ x: worldPt.x, y: worldPt.y, p: e.pressure || 0.5 }); render();
-    } else if (currentTool === 'select' && selectedItem && selectedItem.orig) {
+    } else if ((currentTool === 'select' || currentTool === 'furniture') && selectedItem && selectedItem.orig) {
       const dx = worldPt.x - selectedItem.startWx, dy = worldPt.y - selectedItem.startWy;
       if (!selectedItem.historySaved && Math.hypot(dx, dy) > 2 / cam.zoom) {
         saveHistory(); selectedItem.historySaved = true;
@@ -1587,7 +1768,7 @@
       } else if (selectedItem.type === 'stamp') {
         const nx = selectedItem.orig.x + dx, ny = selectedItem.orig.y + dy;
         let snappedWall = null;
-        if (selectedItem.item.type !== 'label') {
+        if (selectedItem.item.type !== 'label' && selectedItem.item.type !== 'furniture') {
           for (const w of plans[activePlanIdx].walls) {
             const seg = distToSegment(nx, ny, w.x1, w.y1, w.x2, w.y2);
             if (seg.dist < 24 / cam.zoom) { snappedWall = seg; break; }
@@ -1685,6 +1866,8 @@
       ctx.lineWidth = 3.5; ctx.stroke(); ctx.restore();
     }
 
+    for (const st of plan.stamps) if (st.type === 'furniture') drawFurniture(st);
+
     const allWalls = draftWall ? [...plan.walls, draftWall] : plan.walls;
     for (const wall of allWalls) {
       ctx.save(); ctx.lineCap = 'square';
@@ -1721,6 +1904,7 @@
     }
 
     for (const st of plan.stamps) {
+      if (st.type === 'furniture') continue;
       ctx.save(); ctx.translate(st.x, st.y); ctx.rotate(st.angle || 0);
       const w = st.width || 80;
       if (st.type === 'door') {
@@ -1763,6 +1947,12 @@
         ctx.arc(w.x1, w.y1, 8 / cam.zoom, 0, Math.PI * 2);
         ctx.arc(w.x2, w.y2, 8 / cam.zoom, 0, Math.PI * 2);
         ctx.fill();
+      } else if (selectedItem.type === 'stamp' && selectedItem.item.type === 'furniture') {
+        const it = selectedItem.item, pad = 4 / cam.zoom;
+        const fw = it.w * pixelsPerMetre, fd = it.d * pixelsPerMetre;
+        ctx.translate(it.x, it.y); ctx.rotate(it.angle || 0);
+        ctx.setLineDash([6 / cam.zoom, 4 / cam.zoom]);
+        ctx.strokeRect(-fw / 2 - pad, -fd / 2 - pad, fw + pad * 2, fd + pad * 2);
       } else if (selectedItem.type === 'stamp') {
         ctx.beginPath(); ctx.arc(selectedItem.item.x, selectedItem.item.y, 26 / cam.zoom, 0, Math.PI * 2); ctx.stroke();
       }
@@ -1910,9 +2100,35 @@
       currentTool = btn.dataset.tool;
       selectedItem = null;
       updateContextUI(); render();
-      if (currentTool === 'magicroom') showStatus('Magic Room: Tap inside any room on the floorplan to auto-trace its 4 walls!');
+      if (currentTool === 'magicroom') showStatus('Magic: tap inside a room to trace its walls');
+      if (currentTool === 'furniture') openFurniturePicker();
     });
   });
+
+  const furnitureModal = document.getElementById('furnitureModal');
+  function openFurniturePicker() {
+    const list = document.getElementById('furnitureList');
+    list.innerHTML = '';
+    FURNITURE.forEach(group => {
+      const h = document.createElement('div'); h.className = 'furn-cat'; h.textContent = group.cat;
+      const grid = document.createElement('div'); grid.className = 'furn-grid';
+      group.items.forEach(it => {
+        const b = document.createElement('button');
+        b.className = 'furn-item' + (it.key === furnitureKey ? ' selected' : '');
+        b.innerHTML = `<strong>${it.name}</strong><small>${fmtSize(it)}</small>`;
+        b.onclick = () => {
+          furnitureKey = it.key; selectedItem = null;
+          furnitureModal.style.display = 'none';
+          updateContextUI(); render();
+          showStatus(`${it.name}: tap the plan to place it`);
+        };
+        grid.appendChild(b);
+      });
+      list.append(h, grid);
+    });
+    furnitureModal.style.display = 'flex';
+  }
+  document.getElementById('closeFurnitureBtn').addEventListener('click', () => { furnitureModal.style.display = 'none'; });
 
   const autoDrawModal = document.getElementById('autoDrawModal');
   document.querySelectorAll('#autoDetailChoices .detail-choice').forEach(btn => {
@@ -1998,19 +2214,18 @@
   const snapToggle = document.getElementById('snapToggle');
   snapToggle.addEventListener('click', () => {
     snapEnabled = !snapEnabled;
-    snapToggle.classList.toggle('active', snapEnabled);
+    snapToggle.classList.toggle('on', snapEnabled);
     showStatus(snapEnabled ? 'Snap ON: walls stay straight and join up to other walls' : 'Snap OFF: draw walls at any angle');
   });
 
   const penOnlyToggle = document.getElementById('penOnlyToggle');
   penOnlyToggle.addEventListener('click', () => {
     penOnlyMode = !penOnlyMode;
-    penOnlyToggle.classList.toggle('active', penOnlyMode);
-    showStatus(penOnlyMode ? 'S-Pen Mode ON: S Pen draws, 1-finger pans' : 'Touch Draw Mode: Finger & S Pen both draw');
+    penOnlyToggle.classList.toggle('on', penOnlyMode);
+    showStatus(penOnlyMode ? 'Pen only ON: the S Pen draws, fingers move the view' : 'Pen only OFF: fingers and S Pen both draw');
   });
 
   document.getElementById('resetViewBtn').addEventListener('click', fitCanvasToImage);
-  document.getElementById('undoBtn').addEventListener('click', undo);
   floatingUndoBtn.addEventListener('click', undo);
   floatingRedoBtn.addEventListener('click', redo);
 
