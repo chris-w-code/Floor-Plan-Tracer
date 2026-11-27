@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f172a">
-<title>TracePlan — Stylus Floorplan Studio v5 (Persistent PWA)</title>
+<title>TracePlan</title>
 <link id="pwaManifest" rel="manifest" href="">
 <style>
   :root {
@@ -149,6 +149,9 @@
   }
 
   .tab-btn.active { background: var(--accent-active); color: #fff; }
+  .size-btn { background: transparent; border: none; color: var(--muted); padding: 4px 7px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; }
+  .size-btn.active { background: var(--accent-active); color: #fff; }
+  .size-label { font-size: 11px; color: var(--muted); padding: 0 4px 0 6px; align-self: center; }
 
   .slider-wrap {
     display: flex;
@@ -261,7 +264,7 @@
     box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
   }
 
-  .tool-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .tool-row { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
 
   .tool-btn {
     background: rgba(51, 65, 85, 0.45);
@@ -291,7 +294,7 @@
   }
 
   .tool-btn.active { background: rgba(56, 189, 248, 0.18); border-color: var(--accent); color: #fff; }
-  .tool-btn.magic-tool { color: #d8b4fe; border-color: rgba(168, 85, 247, 0.3); }
+  .tool-btn.magic-tool { color: #d8b4fe; }
   .tool-btn.magic-tool.active { background: rgba(168, 85, 247, 0.25); border-color: #c084fc; color: #fff; }
 
   .context-row {
@@ -299,8 +302,8 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding-top: 4px;
-    border-top: 1px solid var(--border);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
   }
 
@@ -320,6 +323,39 @@
 
   .chip.active { background: var(--accent-active); color: #fff; border-color: var(--accent); }
   .swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .chip.danger { color: #fca5a5; }
+  .chip-hint { font-size: 11px; color: var(--muted); }
+
+  /* On/off switches (Snap, Pen only) look different from normal action buttons */
+  .btn.toggle { gap: 6px; }
+  .switch { width: 24px; height: 14px; border-radius: 999px; background: #475569; position: relative; transition: background 0.15s; }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; transition: left 0.15s; }
+  .btn.toggle.on .switch { background: var(--success); }
+  .btn.toggle.on .switch::after { left: 12px; background: #fff; }
+
+  .furn-cat { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 10px 0 6px; }
+  .furn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .furn-item {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+    padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: rgba(15, 23, 42, 0.55); color: #e2e8f0; font: inherit; cursor: pointer;
+  }
+  .furn-item strong { font-size: 12.5px; }
+  .furn-item small { font-size: 10.5px; color: var(--muted); }
+  .furn-item.selected { border-color: #f59e0b; background: rgba(245, 158, 11, 0.15); }
+  .seg { display: flex; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 3px; margin-bottom: 10px; }
+  .seg button { flex: 1; background: transparent; border: none; color: var(--muted); padding: 7px 6px; border-radius: 8px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .seg button.active { background: var(--accent-active); color: #fff; }
+  .seg.small button { font-size: 11.5px; padding: 5px 6px; }
+  .cab-series { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(15, 23, 42, 0.55); margin-bottom: 6px; }
+  .cab-series strong { font-size: 12.5px; color: #e2e8f0; }
+  .cab-series small { display: block; font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+  .cab-widths { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+  .cab-w { background: rgba(51, 65, 85, 0.8); border: 1px solid var(--border); color: #e2e8f0; border-radius: 7px; padding: 5px 9px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+  .cab-w.selected { border-color: #f59e0b; background: rgba(245, 158, 11, 0.2); }
+  .field-row { display: flex; gap: 8px; }
+  .field-row label { flex: 1; font-size: 11px; color: var(--muted); font-weight: 600; }
+  .modal .field-row input { margin-top: 4px; margin-bottom: 10px; }
 
   .modal-backdrop {
     position: fixed;
@@ -406,10 +442,6 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/></svg>
         AutoDraw
       </button>
-      <button class="btn" id="undoBtn" title="Undo Last Action">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-        Undo
-      </button>
       <input type="file" id="fileInput" accept="image/*">
       <input type="file" id="projectFileInput" accept=".json,application/json">
     </div>
@@ -427,7 +459,7 @@
 
   <div class="sub-bar">
     <div class="slider-wrap">
-      <span style="color:var(--muted); white-space:nowrap;">Bg:</span>
+      <span style="color:var(--muted); white-space:nowrap;">Photo</span>
       <input type="range" id="bgOpacitySlider" min="0" max="100" value="40">
       <span id="bgOpacityVal" style="min-width:26px">40%</span>
     </div>
@@ -437,13 +469,20 @@
         <span class="autosave-dot" id="autoSaveDot"></span>
         <span id="autoSaveText">Saved</span>
       </span>
-      <button class="btn active" id="snapToggle" title="Keeps walls straight (90°) and joins them to other walls">Snap</button>
-      <button class="btn active" id="penOnlyToggle">S-Pen</button>
+      <div class="tabs" id="labelSizeTabs" title="Size of wall measurements">
+        <span class="size-label">Text</span>
+        <button class="size-btn" data-size="S">S</button>
+        <button class="size-btn active" data-size="M">M</button>
+        <button class="size-btn" data-size="L">L</button>
+        <button class="size-btn" data-size="XL">XL</button>
+      </div>
+      <button class="btn toggle on" id="snapToggle" title="Keeps walls straight (90°) and joins them to other walls">Snap <span class="switch"></span></button>
+      <button class="btn toggle on" id="penOnlyToggle" title="On: only the S Pen draws, fingers move the view">Pen only <span class="switch"></span></button>
       <button class="btn" id="resetViewBtn">Fit</button>
     </div>
   </div>
 
-  <div class="status-pill" id="statusPill">Auto-save active • All walls & photos persist on this device</div>
+  <div class="status-pill" id="statusPill">Your work saves automatically on this device</div>
 </div>
 
 <div class="side-dock">
@@ -481,6 +520,10 @@
       <svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V8a12 12 0 0 1 12 12"/></svg>
       Doors
     </button>
+    <button class="tool-btn" data-tool="furniture">
+      <svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M6 9V6h12v3"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>
+      Furniture
+    </button>
     <button class="tool-btn" data-tool="sketch">
       <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
       Sketch
@@ -506,7 +549,7 @@
       <span>Saved Floorplan Projects</span>
       <button class="btn" id="closeProjectsBtn" style="padding:4px 8px;">✕</button>
     </h3>
-    <p>Your work auto-saves to your phone's internal database (`IndexedDB`) after every stroke. You can also save multiple properties or export `.json` backup files.</p>
+    <p>Your work saves automatically on this device. You can keep several properties here, or download a backup file to keep somewhere safe.</p>
 
     <div style="display:flex; gap:6px; margin-bottom:10px;">
       <input type="text" id="projectNameInput" placeholder="Project Name (e.g. 14 Cronulla St)" style="margin-bottom:0; flex:1;">
@@ -555,6 +598,21 @@
         <button class="btn magic" id="runAutoDrawAddBtn">+ Add</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="furnitureModal">
+  <div class="modal">
+    <h3>
+      <span>Furniture &amp; Cabinetry</span>
+      <button class="btn" id="closeFurnitureBtn" style="padding:4px 8px;">✕</button>
+    </h3>
+    <p>Set your Scale first so pieces are drawn at the right size. With Snap on, pieces dragged near a wall sit flush against it.</p>
+    <div class="seg" id="pickerTabs">
+      <button data-tab="furniture">Furniture</button>
+      <button data-tab="cabinetry">Cabinetry</button>
+    </div>
+    <div id="furnitureList"></div>
   </div>
 </div>
 
@@ -1180,7 +1238,12 @@
     showStatus(`Magic Room traced: ${((x2 - x1) / pixelsPerMetre).toFixed(2)}m × ${((y2 - y1) / pixelsPerMetre).toFixed(2)}m`);
   }
 
-  function showStatus(msg) { statusPill.textContent = msg; statusPill.style.opacity = '1'; }
+  let statusTimer = null;
+  function showStatus(msg) {
+    statusPill.textContent = msg; statusPill.style.opacity = '1';
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { statusPill.style.opacity = '0'; }, 4000);
+  }
 
   function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
@@ -1280,11 +1343,254 @@
     return { dist: Math.hypot(px - xx, py - yy), x: xx, y: yy, angle: Math.atan2(D, C) };
   }
 
+  // Standard furniture sizes in metres (w = width, d = depth)
+  const FURNITURE = [
+    { cat: 'Bedroom', items: [
+      { key: 'bed_single', name: 'Single bed', w: 0.92, d: 1.88, kind: 'bed' },
+      { key: 'bed_ksingle', name: 'King single bed', w: 1.07, d: 2.03, kind: 'bed' },
+      { key: 'bed_double', name: 'Double bed', w: 1.38, d: 1.88, kind: 'bed2' },
+      { key: 'bed_queen', name: 'Queen bed', w: 1.53, d: 2.03, kind: 'bed2' },
+      { key: 'bed_king', name: 'King bed', w: 1.83, d: 2.03, kind: 'bed2' },
+      { key: 'bedside', name: 'Bedside table', w: 0.45, d: 0.40 },
+      { key: 'wardrobe', name: 'Wardrobe', w: 1.20, d: 0.60 },
+      { key: 'drawers', name: 'Chest of drawers', w: 0.90, d: 0.50 },
+      { key: 'desk', name: 'Desk', w: 1.20, d: 0.60 }
+    ]},
+    { cat: 'Living', items: [
+      { key: 'sofa3', name: '3-seat sofa', w: 2.10, d: 0.90, kind: 'sofa' },
+      { key: 'sofa2', name: '2-seat sofa', w: 1.60, d: 0.90, kind: 'sofa' },
+      { key: 'armchair', name: 'Armchair', w: 0.85, d: 0.85, kind: 'sofa' },
+      { key: 'coffee', name: 'Coffee table', w: 1.20, d: 0.60 },
+      { key: 'tv', name: 'TV unit', w: 1.80, d: 0.45 },
+      { key: 'bookcase', name: 'Bookcase', w: 0.90, d: 0.35 }
+    ]},
+    { cat: 'Dining', items: [
+      { key: 'dining4', name: 'Dining table (4)', w: 1.20, d: 0.80 },
+      { key: 'dining6', name: 'Dining table (6)', w: 1.80, d: 0.90 },
+      { key: 'round4', name: 'Round table (4)', w: 1.00, d: 1.00, kind: 'round' },
+      { key: 'chair', name: 'Dining chair', w: 0.45, d: 0.50 }
+    ]},
+    { cat: 'Kitchen', items: [
+      { key: 'fridge', name: 'Fridge', w: 0.90, d: 0.70 },
+      { key: 'oven', name: 'Oven / cooktop', w: 0.60, d: 0.60 },
+      { key: 'dishwasher', name: 'Dishwasher', w: 0.60, d: 0.60 },
+      { key: 'sink', name: 'Sink unit', w: 0.90, d: 0.60 },
+      { key: 'island', name: 'Island bench', w: 2.00, d: 0.90 }
+    ]},
+    { cat: 'Bathroom & Laundry', items: [
+      { key: 'toilet', name: 'Toilet', w: 0.40, d: 0.70 },
+      { key: 'vanity', name: 'Vanity', w: 0.90, d: 0.46 },
+      { key: 'shower', name: 'Shower', w: 0.90, d: 0.90 },
+      { key: 'bath', name: 'Bath', w: 1.70, d: 0.75 },
+      { key: 'washer', name: 'Washing machine', w: 0.60, d: 0.60 },
+      { key: 'dryer', name: 'Dryer', w: 0.60, d: 0.60 },
+      { key: 'tub', name: 'Laundry tub', w: 0.60, d: 0.50 }
+    ]}
+  ];
+  // IKEA cabinet frame sizes (width options in cm, depth in metres)
+  const IKEA_CABINETS = [
+    { cat: 'Kitchen (METOD)', series: [
+      { id: 'metod_base', title: 'METOD base cabinet', short: 'METOD base', d: 0.60, kind: 'base', widths: [20, 30, 40, 60, 80] },
+      { id: 'metod_sink', title: 'METOD sink base cabinet', short: 'METOD sink', d: 0.60, kind: 'base', widths: [60, 80] },
+      { id: 'metod_corner_l', title: 'METOD corner base cabinet (L-shaped)', short: 'METOD corner', d: 0.88, arm: 0.60, shape: 'L', kind: 'base', widths: [88],
+        note: '88 × 88 cm footprint · 60 cm deep arms · rotate to fit your corner' },
+      { id: 'metod_corner', title: 'METOD corner base cabinet (blind corner)', short: 'METOD corner', d: 0.60, kind: 'base', widths: [128] },
+      { id: 'metod_high', title: 'METOD high cabinet (pantry / oven)', short: 'METOD high', d: 0.60, kind: 'tall', widths: [40, 60] },
+      { id: 'metod_wall', title: 'METOD wall cabinet (overhead)', short: 'METOD wall', d: 0.37, kind: 'wall', widths: [20, 30, 40, 60, 80] }
+    ]},
+    { cat: 'Wardrobes (PAX)', series: [
+      { id: 'pax', title: 'PAX wardrobe frame', short: 'PAX', d: 0.58, kind: 'tall', widths: [50, 75, 100] },
+      { id: 'pax_shallow', title: 'PAX wardrobe frame (shallow)', short: 'PAX shallow', d: 0.35, kind: 'tall', widths: [50, 75, 100] }
+    ]},
+    { cat: 'Living (BESTÅ)', series: [
+      { id: 'besta', title: 'BESTÅ storage / TV unit', short: 'BESTÅ', d: 0.40, kind: 'base', widths: [60, 120, 180] }
+    ]},
+    { cat: 'Bathroom (GODMORGON)', series: [
+      { id: 'godmorgon', title: 'GODMORGON vanity', short: 'GODMORGON', d: 0.47, kind: 'base', widths: [60, 80, 100, 120] }
+    ]}
+  ];
+  const CAB_KIND_LABEL = { base: 'Base', wall: 'Overhead', tall: 'Tall' };
+  const CAB_KIND_DEPTH = { base: 600, wall: 350, tall: 600 };
+
+  const FURNITURE_BY_KEY = {};
+  FURNITURE.forEach(c => c.items.forEach(it => { FURNITURE_BY_KEY[it.key] = it; }));
+  IKEA_CABINETS.forEach(c => c.series.forEach(se => se.widths.forEach(cm => {
+    const key = `${se.id}_${cm}`;
+    FURNITURE_BY_KEY[key] = { key, name: `${se.short} ${cm}`, w: cm / 100, d: se.d, kind: se.kind, cab: true, shape: se.shape, arm: se.arm };
+  })));
+  let furnitureKey = 'bed_queen';
+  let pickerTab = 'furniture';
+  let cabMode = 'ikea';
+  let customCab = { kind: 'base', w: 600, d: 600, name: '' };
+
+  // The piece that will be placed next
+  function getCurrentPiece() {
+    if (furnitureKey === 'custom') {
+      return { key: 'custom', name: customCab.name || `${CAB_KIND_LABEL[customCab.kind]} ${customCab.w}`,
+        w: customCab.w / 1000, d: customCab.d / 1000, kind: customCab.kind, cab: true };
+    }
+    return FURNITURE_BY_KEY[furnitureKey] || FURNITURE_BY_KEY.bed_queen;
+  }
+
+  function fmtSize(it) {
+    if (it.cab) return `${Math.round(it.w * 1000)} × ${Math.round(it.d * 1000)} mm`;
+    return `${it.w.toFixed(2)} × ${it.d.toFixed(2)} m`;
+  }
+
+  // With Snap on: sit a piece flush against a nearby wall (keeping its 90° turns),
+  // then butt it up against neighbouring pieces on the same wall.
+  function snapPieceToWalls(item) {
+    if (!snapEnabled || item.kind === 'round') return;
+    const p = plans[activePlanIdx];
+    const W = item.w * pixelsPerMetre, D = item.d * pixelsPerMetre;
+    const HALF_WALL = 5, tol = 18 / cam.zoom;
+    const extentAlong = (ang, theta, w, d) => {
+      const c = Math.abs(Math.cos(ang - theta)), sn = Math.abs(Math.sin(ang - theta));
+      return { u: c * w / 2 + sn * d / 2, n: sn * w / 2 + c * d / 2 };
+    };
+    let best = null, bestErr = tol;
+    for (const wl of p.walls) {
+      const len = Math.hypot(wl.x2 - wl.x1, wl.y2 - wl.y1);
+      if (len < 1) continue;
+      const ux = (wl.x2 - wl.x1) / len, uy = (wl.y2 - wl.y1) / len, nx = -uy, ny = ux;
+      const theta = Math.atan2(uy, ux);
+      const rx = item.x - wl.x1, ry = item.y - wl.y1;
+      const t = rx * ux + ry * uy, perp = rx * nx + ry * ny;
+      const k = Math.round(((item.angle || 0) - theta) / (Math.PI / 2));
+      const sideOn = Math.abs(k) % 2 === 1;
+      // Front/back against the wall: turn it so the back (bed head, sofa back, cabinet back) faces the wall
+      const ang = sideOn ? theta + k * Math.PI / 2 : (perp >= 0 ? theta : theta + Math.PI);
+      const ext = extentAlong(ang, theta, W, D);
+      if (t < -ext.u * 0.5 || t > len + ext.u * 0.5) continue;
+      const err = Math.abs(Math.abs(perp) - (HALF_WALL + ext.n));
+      if (err < bestErr) { bestErr = err; best = { wl, ux, uy, nx, ny, theta, t, s: perp >= 0 ? 1 : -1, ang, ext }; }
+    }
+    if (!best) return;
+    const { wl, ux, uy, nx, ny, theta, s, ang, ext } = best;
+    let t = best.t;
+    const off = s * (HALF_WALL + ext.n);
+    let bestGap = tol, shift = 0;
+    // Corners: also close the gap to a wall that runs across this one
+    const cx0 = wl.x1 + ux * t + nx * off, cy0 = wl.y1 + uy * t + ny * off;
+    for (const wb of p.walls) {
+      if (wb === wl) continue;
+      const lb = Math.hypot(wb.x2 - wb.x1, wb.y2 - wb.y1);
+      if (lb < 1) continue;
+      const bux = (wb.x2 - wb.x1) / lb, buy = (wb.y2 - wb.y1) / lb, bnx = -buy, bny = bux;
+      const sgn = bnx * ux + bny * uy;               // +-1 when the walls are at right angles
+      if (Math.abs(sgn) < 0.99) continue;
+      const tb = (cx0 - wb.x1) * bux + (cy0 - wb.y1) * buy;
+      if (tb < -ext.n || tb > lb + ext.n) continue;
+      const pc = (cx0 - wb.x1) * bnx + (cy0 - wb.y1) * bny;
+      const g = Math.abs(pc) - (HALF_WALL + ext.u);
+      if (Math.abs(g) < bestGap) { bestGap = Math.abs(g); shift = -Math.sign(pc) * g * Math.sign(sgn); }
+    }
+    // Neighbours on the same side of this wall (overheads only line up with overheads)
+    for (const o of p.stamps) {
+      if (o === item || o.type !== 'furniture' || o.kind === 'round') continue;
+      if ((o.kind === 'wall') !== (item.kind === 'wall')) continue;
+      const orx = o.x - wl.x1, ory = o.y - wl.y1;
+      const to = orx * ux + ory * uy, po = orx * nx + ory * ny;
+      const oe = extentAlong(o.angle || 0, theta, o.w * pixelsPerMetre, o.d * pixelsPerMetre);
+      if (Math.abs(po - off) > ext.n + oe.n) continue;
+      const g1 = (to - oe.u) - (t + ext.u), g2 = (t - ext.u) - (to + oe.u);
+      if (Math.abs(g1) < bestGap) { bestGap = Math.abs(g1); shift = g1; }
+      if (Math.abs(g2) < bestGap) { bestGap = Math.abs(g2); shift = -g2; }
+    }
+    t += shift;
+    item.angle = ((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    item.x = wl.x1 + ux * t + nx * off;
+    item.y = wl.y1 + uy * t + ny * off;
+  }
+
+  // Find furniture under a point (works for rotated pieces)
+  function hitFurniture(wx, wy) {
+    const p = plans[activePlanIdx];
+    for (let i = p.stamps.length - 1; i >= 0; i--) {
+      const s = p.stamps[i];
+      if (s.type !== 'furniture') continue;
+      const a = -(s.angle || 0), dx = wx - s.x, dy = wy - s.y;
+      const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+      if (Math.abs(lx) <= s.w * pixelsPerMetre / 2 && Math.abs(ly) <= s.d * pixelsPerMetre / 2) {
+        return { type: 'stamp', index: i, item: s, handle: 'body' };
+      }
+    }
+    return null;
+  }
+
+  function drawFurniture(st) {
+    const w = st.w * pixelsPerMetre, d = st.d * pixelsPerMetre;
+    const def = { kind: st.kind || (FURNITURE_BY_KEY[st.key] || {}).kind };
+    ctx.save(); ctx.translate(st.x, st.y); ctx.rotate(st.angle || 0);
+    if (st.cab) {
+      // Cabinetry: grey boxes. Overhead = dashed, Tall = cross.
+      ctx.fillStyle = def.kind === 'wall' ? 'rgba(226, 232, 240, 0.55)' : 'rgba(226, 232, 240, 0.95)';
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
+      if (def.kind === 'wall') ctx.setLineDash([5, 3]);
+      if (st.shape === 'L') {
+        // L-shaped corner unit: arms along the back and left side
+        const a = (st.arm || 0.6) * pixelsPerMetre;
+        ctx.beginPath();
+        ctx.moveTo(-w / 2, -d / 2); ctx.lineTo(w / 2, -d / 2); ctx.lineTo(w / 2, -d / 2 + a);
+        ctx.lineTo(-w / 2 + a, -d / 2 + a); ctx.lineTo(-w / 2 + a, d / 2); ctx.lineTo(-w / 2, d / 2);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        const lfs = Math.max(5, Math.min(11, a * 0.3));
+        ctx.fillStyle = '#1e293b'; ctx.font = `600 ${lfs}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(st.name, 0, -d / 2 + a / 2);
+        ctx.restore();
+        return;
+      }
+      ctx.fillRect(-w / 2, -d / 2, w, d); ctx.strokeRect(-w / 2, -d / 2, w, d);
+      ctx.setLineDash([]);
+      if (def.kind === 'tall') {
+        ctx.lineWidth = 0.8; ctx.beginPath();
+        ctx.moveTo(-w / 2, -d / 2); ctx.lineTo(w / 2, d / 2); ctx.moveTo(w / 2, -d / 2); ctx.lineTo(-w / 2, d / 2);
+        ctx.stroke();
+      }
+      const cfs = Math.max(5, Math.min(11, (w * 0.9) / Math.max(4, st.name.length * 0.58), d * 0.4));
+      ctx.fillStyle = '#1e293b'; ctx.font = `600 ${cfs}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (def.kind === 'tall') {
+        const tw = ctx.measureText(st.name).width;
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.95)'; ctx.fillRect(-tw / 2 - 2, -cfs * 0.65, tw + 4, cfs * 1.3);
+        ctx.fillStyle = '#1e293b';
+      }
+      ctx.fillText(st.name, 0, 0);
+      ctx.restore();
+      return;
+    }
+    ctx.fillStyle = 'rgba(254, 243, 199, 0.92)'; ctx.strokeStyle = '#92400e'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (def.kind === 'round') ctx.ellipse(0, 0, w / 2, d / 2, 0, 0, Math.PI * 2);
+    else ctx.rect(-w / 2, -d / 2, w, d);
+    ctx.fill(); ctx.stroke();
+    // Simple details so pieces are recognisable
+    ctx.lineWidth = 1;
+    if (def.kind === 'bed' || def.kind === 'bed2') {
+      const ph = Math.min(d * 0.13, 0.3 * pixelsPerMetre), pad = w * 0.08;
+      if (def.kind === 'bed') ctx.strokeRect(-w / 2 + pad, -d / 2 + pad * 0.6, w - pad * 2, ph);
+      else {
+        const pw = (w - pad * 3) / 2;
+        ctx.strokeRect(-w / 2 + pad, -d / 2 + pad * 0.6, pw, ph);
+        ctx.strokeRect(-w / 2 + pad * 2 + pw, -d / 2 + pad * 0.6, pw, ph);
+      }
+    } else if (def.kind === 'sofa') {
+      ctx.strokeRect(-w / 2, -d / 2, w, d * 0.25);
+    }
+    const fs = Math.max(6, Math.min(12, (w * 0.9) / Math.max(4, st.name.length * 0.58)));
+    ctx.fillStyle = '#78350f'; ctx.font = `600 ${fs}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(st.name, 0, def.kind === 'sofa' ? d * 0.12 : 0);
+    ctx.restore();
+  }
+
   function hitTest(wx, wy) {
     const p = plans[activePlanIdx];
     const tol = 18 / cam.zoom;
     for (let i = p.stamps.length - 1; i >= 0; i--) {
       const s = p.stamps[i];
+      if (s.type === 'furniture') continue;
       if (Math.hypot(wx - s.x, wy - s.y) < Math.max(tol, (s.width || 45) * 0.5)) {
         return { type: 'stamp', index: i, item: s, handle: 'body' };
       }
@@ -1293,6 +1599,11 @@
       const w = p.walls[i];
       if (Math.hypot(wx - w.x1, wy - w.y1) < tol) return { type: 'wall', index: i, item: w, handle: 'p1' };
       if (Math.hypot(wx - w.x2, wy - w.y2) < tol) return { type: 'wall', index: i, item: w, handle: 'p2' };
+    }
+    const furn = hitFurniture(wx, wy);
+    if (furn) return furn;
+    for (let i = p.walls.length - 1; i >= 0; i--) {
+      const w = p.walls[i];
       if (distToSegment(wx, wy, w.x1, w.y1, w.x2, w.y2).dist < tol) return { type: 'wall', index: i, item: w, handle: 'body' };
     }
     for (let i = p.sketches.length - 1; i >= 0; i--) {
@@ -1321,7 +1632,7 @@
     } else if (currentTool === 'magicroom') {
       const info = document.createElement('span');
       info.style.fontSize = '11px'; info.style.color = '#d8b4fe';
-      info.textContent = 'Tap inside any room on your photo — 4 walls will auto-snap to its boundaries!';
+      info.textContent = 'Tap inside a room on your photo to trace its walls.';
       const fullBtn = document.createElement('button');
       fullBtn.className = 'chip active'; fullBtn.style.background = '#7e22ce';
       fullBtn.textContent = 'AutoDraw Whole Plan...';
@@ -1340,6 +1651,11 @@
         btn.onclick = () => { stampType = st.id; updateContextUI(); };
         contextRow.appendChild(btn);
       });
+      if (selectedItem && selectedItem.type === 'stamp' && selectedItem.item.type !== 'label') {
+        const br = document.createElement('div'); br.style.flexBasis = '100%'; br.style.height = '0';
+        contextRow.appendChild(br);
+        addStampActions(selectedItem.item);
+      }
     } else if (currentTool === 'sketch') {
       [
         { c: '#0284c7', name: 'Blue' },
@@ -1353,36 +1669,30 @@
         btn.onclick = () => { sketchColor = col.c; updateContextUI(); };
         contextRow.appendChild(btn);
       });
+    } else if (currentTool === 'furniture') {
+      const it = getCurrentPiece();
+      contextRow.appendChild(makeChip(`${it.name} · ${fmtSize(it)} ▾`, openFurniturePicker, 'active'));
+      if (selectedItem && selectedItem.item.type === 'furniture') addStampActions(selectedItem.item);
+      else contextRow.appendChild(makeHint('Tap the plan to place it'));
     } else if (currentTool === 'select') {
       if (selectedItem && selectedItem.type === 'stamp') {
-        const rotBtn = document.createElement('button');
-        rotBtn.className = 'chip active'; rotBtn.textContent = 'Rotate 90°';
-        rotBtn.onclick = () => { saveHistory(); selectedItem.item.angle = (selectedItem.item.angle || 0) + Math.PI / 2; render(); scheduleAutoSave(); };
-        const flipBtn = document.createElement('button');
-        flipBtn.className = 'chip'; flipBtn.textContent = 'Flip Swing';
-        flipBtn.onclick = () => { saveHistory(); selectedItem.item.flipped = !selectedItem.item.flipped; render(); scheduleAutoSave(); };
-        const delBtn = document.createElement('button');
-        delBtn.className = 'chip'; delBtn.style.color = '#fca5a5'; delBtn.textContent = 'Delete';
-        delBtn.onclick = deleteSelected;
-        contextRow.append(rotBtn, flipBtn, delBtn);
+        addStampActions(selectedItem.item);
       } else if (selectedItem && selectedItem.type === 'wall') {
-        const styleBtn = document.createElement('button');
-        styleBtn.className = 'chip'; styleBtn.textContent = 'Cycle Type (Solid/New/Demo)';
-        styleBtn.onclick = () => {
-          saveHistory();
-          const order = ['existing', 'new', 'demo'];
-          selectedItem.item.style = order[(order.indexOf(selectedItem.item.style) + 1) % order.length];
-          render(); scheduleAutoSave();
-        };
-        const delBtn = document.createElement('button');
-        delBtn.className = 'chip'; delBtn.style.color = '#fca5a5'; delBtn.textContent = 'Delete Wall';
-        delBtn.onclick = deleteSelected;
-        contextRow.append(styleBtn, delBtn);
+        [
+          { id: 'existing', label: 'Solid', color: '#1e293b' },
+          { id: 'new', label: 'New', color: '#0284c7' },
+          { id: 'demo', label: 'Demolish', color: '#ef4444' }
+        ].forEach(st => {
+          const btn = makeChip(`<span class="swatch" style="background:${st.color}"></span>${st.label}`, () => {
+            if (selectedItem.item.style === st.id) return;
+            saveHistory(); selectedItem.item.style = st.id;
+            updateContextUI(); render(); scheduleAutoSave();
+          }, selectedItem.item.style === st.id ? 'active' : '', true);
+          contextRow.appendChild(btn);
+        });
+        contextRow.appendChild(makeChip('Delete', deleteSelected, 'danger'));
       } else {
-        const info = document.createElement('span');
-        info.style.fontSize = '11px'; info.style.color = 'var(--muted)';
-        info.textContent = 'Tap any wall corner, wall segment, or door to move or modify it.';
-        contextRow.appendChild(info);
+        contextRow.appendChild(makeHint('Tap a wall, door or piece of furniture to move or change it.'));
       }
     } else if (currentTool === 'scale') {
       const info = document.createElement('span');
@@ -1394,12 +1704,44 @@
       clearBtn.className = 'chip'; clearBtn.style.color = '#fca5a5';
       clearBtn.textContent = 'Clear All in ' + plans[activePlanIdx].name;
       clearBtn.onclick = () => {
+        if (!confirm('Remove all walls, doors, furniture and sketches from ' + plans[activePlanIdx].name + '? (You can Undo this.)')) return;
         saveHistory();
         plans[activePlanIdx].walls = []; plans[activePlanIdx].stamps = []; plans[activePlanIdx].sketches = [];
         render(); scheduleAutoSave(); showStatus('Cleared ' + plans[activePlanIdx].name);
       };
       contextRow.appendChild(clearBtn);
     }
+  }
+
+  function makeChip(label, onClick, extraClass = '', html = false) {
+    const btn = document.createElement('button');
+    btn.className = 'chip ' + extraClass;
+    if (html) btn.innerHTML = label; else btn.textContent = label;
+    btn.onclick = onClick;
+    return btn;
+  }
+  function makeHint(text) {
+    const span = document.createElement('span');
+    span.className = 'chip-hint'; span.textContent = text;
+    return span;
+  }
+
+  // Buttons for a selected door / window / label / furniture piece.
+  // Rotate is a normal press-again button (turns 90° each press), not an on/off toggle.
+  function addStampActions(item) {
+    if (item.type !== 'label') {
+      contextRow.appendChild(makeChip('↻ Rotate 90°', () => {
+        saveHistory();
+        item.angle = ((item.angle || 0) + Math.PI / 2) % (Math.PI * 2);
+        render(); scheduleAutoSave();
+      }));
+    }
+    if (item.type === 'door') {
+      contextRow.appendChild(makeChip('⇅ Flip swing', () => {
+        saveHistory(); item.flipped = !item.flipped; render(); scheduleAutoSave();
+      }));
+    }
+    contextRow.appendChild(makeChip('Delete', deleteSelected, 'danger'));
   }
 
   function deleteSelected() {
@@ -1523,8 +1865,27 @@
         flipped: false
       });
       selectedItem = { type: 'stamp', index: plans[activePlanIdx].stamps.length - 1, item: plans[activePlanIdx].stamps[plans[activePlanIdx].stamps.length - 1], handle: 'body' };
-      render(); scheduleAutoSave();
-      showStatus('Placed ' + stampType + ' (Auto-saved)');
+      updateContextUI(); render(); scheduleAutoSave();
+      showStatus('Placed ' + stampType + ' — use Rotate or Flip below to adjust');
+    } else if (currentTool === 'furniture') {
+      let hit = hitFurniture(worldPt.x, worldPt.y);
+      if (!hit) {
+        const def = getCurrentPiece();
+        saveHistory();
+        const item = { type: 'furniture', key: def.key, name: def.name, w: def.w, d: def.d, kind: def.kind, cab: !!def.cab, x: worldPt.x, y: worldPt.y, angle: 0 };
+        if (def.shape) { item.shape = def.shape; item.arm = def.arm; }
+        snapPieceToWalls(item);
+        plans[activePlanIdx].stamps.push(item);
+        hit = { type: 'stamp', index: plans[activePlanIdx].stamps.length - 1, item, handle: 'body', historySaved: true };
+        scheduleAutoSave();
+        showStatus(`Placed ${def.name} — drag to move it`);
+      } else {
+        hit.historySaved = false;
+      }
+      hit.startWx = worldPt.x; hit.startWy = worldPt.y;
+      hit.orig = { x: hit.item.x, y: hit.item.y };
+      selectedItem = hit;
+      updateContextUI(); render();
     } else if (currentTool === 'select') {
       const hit = hitTest(worldPt.x, worldPt.y);
       selectedItem = hit;
@@ -1568,7 +1929,7 @@
       draftScaleLine.x2 = worldPt.x; draftScaleLine.y2 = worldPt.y; render();
     } else if (draftSketch) {
       draftSketch.pts.push({ x: worldPt.x, y: worldPt.y, p: e.pressure || 0.5 }); render();
-    } else if (currentTool === 'select' && selectedItem && selectedItem.orig) {
+    } else if ((currentTool === 'select' || currentTool === 'furniture') && selectedItem && selectedItem.orig) {
       const dx = worldPt.x - selectedItem.startWx, dy = worldPt.y - selectedItem.startWy;
       if (!selectedItem.historySaved && Math.hypot(dx, dy) > 2 / cam.zoom) {
         saveHistory(); selectedItem.historySaved = true;
@@ -1587,7 +1948,7 @@
       } else if (selectedItem.type === 'stamp') {
         const nx = selectedItem.orig.x + dx, ny = selectedItem.orig.y + dy;
         let snappedWall = null;
-        if (selectedItem.item.type !== 'label') {
+        if (selectedItem.item.type !== 'label' && selectedItem.item.type !== 'furniture') {
           for (const w of plans[activePlanIdx].walls) {
             const seg = distToSegment(nx, ny, w.x1, w.y1, w.x2, w.y2);
             if (seg.dist < 24 / cam.zoom) { snappedWall = seg; break; }
@@ -1597,6 +1958,7 @@
           selectedItem.item.x = snappedWall.x; selectedItem.item.y = snappedWall.y; selectedItem.item.angle = snappedWall.angle;
         } else {
           selectedItem.item.x = nx; selectedItem.item.y = ny;
+          if (selectedItem.item.type === 'furniture') snapPieceToWalls(selectedItem.item);
         }
       }
       render();
@@ -1642,6 +2004,19 @@
     applyZoomAroundScreenPt(cam.zoom * 0.8, window.innerWidth / 2, window.innerHeight / 2);
   });
 
+  const LABEL_SIZES = { S: 11, M: 14, L: 18, XL: 23 };
+  let labelSize = 'M';
+  try { const saved = localStorage.getItem('traceplan_label_size'); if (LABEL_SIZES[saved]) labelSize = saved; } catch (e) {}
+  document.querySelectorAll('#labelSizeTabs .size-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === labelSize);
+    btn.addEventListener('click', () => {
+      labelSize = btn.dataset.size;
+      document.querySelectorAll('#labelSizeTabs .size-btn').forEach(b => b.classList.toggle('active', b === btn));
+      try { localStorage.setItem('traceplan_label_size', labelSize); } catch (e) {}
+      render();
+    });
+  });
+
   function formatMetres(pxLen) { return (pxLen / pixelsPerMetre).toFixed(2) + 'm'; }
 
   function render(exportClean = false) {
@@ -1685,6 +2060,8 @@
       ctx.lineWidth = 3.5; ctx.stroke(); ctx.restore();
     }
 
+    for (const st of plan.stamps) if (st.type === 'furniture') drawFurniture(st);
+
     const allWalls = draftWall ? [...plan.walls, draftWall] : plan.walls;
     for (const wall of allWalls) {
       ctx.save(); ctx.lineCap = 'square';
@@ -1695,19 +2072,24 @@
       ctx.beginPath(); ctx.moveTo(wall.x1, wall.y1); ctx.lineTo(wall.x2, wall.y2); ctx.stroke();
 
       const pxLen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
-      if (pxLen > 32) {
+      if (pxLen * cam.zoom > 24) {
         const mx = (wall.x1 + wall.x2) / 2, my = (wall.y1 + wall.y2) / 2;
         let angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
         if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI;
         ctx.save(); ctx.translate(mx, my); ctx.rotate(angle); ctx.setLineDash([]);
+        // Measurements stay the same size on screen at any zoom (size picked in the top bar)
         const label = formatMetres(pxLen);
-        ctx.font = 'bold 11px sans-serif';
+        const fs = LABEL_SIZES[labelSize] / cam.zoom, pad = 3 / cam.zoom;
+        ctx.font = `bold ${fs}px sans-serif`;
         const tw = ctx.measureText(label).width;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
-        ctx.fillRect(-tw / 2 - 4, -20, tw + 8, 14);
-        ctx.fillStyle = wall.style === 'demo' ? '#dc2626' : '#0f172a';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(label, 0, -13);
+        if (tw + pad * 3 <= pxLen) { // hide if longer than the wall at this zoom
+          const boxH = fs + pad * 2, boxY = -6 - 2 / cam.zoom - boxH;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.fillRect(-tw / 2 - pad * 1.5, boxY, tw + pad * 3, boxH);
+          ctx.fillStyle = wall.style === 'demo' ? '#dc2626' : '#0f172a';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(label, 0, boxY + boxH / 2 + fs * 0.05);
+        }
         ctx.restore();
       }
 
@@ -1721,6 +2103,7 @@
     }
 
     for (const st of plan.stamps) {
+      if (st.type === 'furniture') continue;
       ctx.save(); ctx.translate(st.x, st.y); ctx.rotate(st.angle || 0);
       const w = st.width || 80;
       if (st.type === 'door') {
@@ -1763,6 +2146,12 @@
         ctx.arc(w.x1, w.y1, 8 / cam.zoom, 0, Math.PI * 2);
         ctx.arc(w.x2, w.y2, 8 / cam.zoom, 0, Math.PI * 2);
         ctx.fill();
+      } else if (selectedItem.type === 'stamp' && selectedItem.item.type === 'furniture') {
+        const it = selectedItem.item, pad = 4 / cam.zoom;
+        const fw = it.w * pixelsPerMetre, fd = it.d * pixelsPerMetre;
+        ctx.translate(it.x, it.y); ctx.rotate(it.angle || 0);
+        ctx.setLineDash([6 / cam.zoom, 4 / cam.zoom]);
+        ctx.strokeRect(-fw / 2 - pad, -fd / 2 - pad, fw + pad * 2, fd + pad * 2);
       } else if (selectedItem.type === 'stamp') {
         ctx.beginPath(); ctx.arc(selectedItem.item.x, selectedItem.item.y, 26 / cam.zoom, 0, Math.PI * 2); ctx.stroke();
       }
@@ -1910,9 +2299,117 @@
       currentTool = btn.dataset.tool;
       selectedItem = null;
       updateContextUI(); render();
-      if (currentTool === 'magicroom') showStatus('Magic Room: Tap inside any room on the floorplan to auto-trace its 4 walls!');
+      if (currentTool === 'magicroom') showStatus('Magic: tap inside a room to trace its walls');
+      if (currentTool === 'furniture') openFurniturePicker();
     });
   });
+
+  const furnitureModal = document.getElementById('furnitureModal');
+  function choosePiece(key) {
+    furnitureKey = key; selectedItem = null;
+    furnitureModal.style.display = 'none';
+    updateContextUI(); render();
+    showStatus(`${getCurrentPiece().name}: tap the plan to place it`);
+  }
+
+  function el(tag, cls, html) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+  }
+
+  function renderPicker() {
+    document.querySelectorAll('#pickerTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === pickerTab));
+    const list = document.getElementById('furnitureList');
+    list.innerHTML = '';
+
+    if (pickerTab === 'furniture') {
+      FURNITURE.forEach(group => {
+        const grid = el('div', 'furn-grid');
+        group.items.forEach(it => {
+          const b = el('button', 'furn-item' + (it.key === furnitureKey ? ' selected' : ''), `<strong>${it.name}</strong><small>${fmtSize(it)}</small>`);
+          b.onclick = () => choosePiece(it.key);
+          grid.appendChild(b);
+        });
+        list.append(el('div', 'furn-cat', group.cat), grid);
+      });
+      return;
+    }
+
+    // Cabinetry: IKEA sizes or custom size
+    const modes = el('div', 'seg small');
+    [['ikea', 'IKEA sizes'], ['custom', 'Custom size']].forEach(([id, label]) => {
+      const b = el('button', cabMode === id ? 'active' : '', label);
+      b.onclick = () => { cabMode = id; renderPicker(); };
+      modes.appendChild(b);
+    });
+    list.appendChild(modes);
+
+    if (cabMode === 'ikea') {
+      list.appendChild(el('div', 'param-hint', 'Cabinet frame sizes. Check exact sizes on the IKEA website before ordering.'));
+      IKEA_CABINETS.forEach(group => {
+        list.appendChild(el('div', 'furn-cat', group.cat));
+        group.series.forEach(se => {
+          const card = el('div', 'cab-series', `<strong>${se.title}</strong><small>${se.note || Math.round(se.d * 100) + ' cm deep · ' + CAB_KIND_LABEL[se.kind].toLowerCase()}</small>`);
+          const widths = el('div', 'cab-widths');
+          se.widths.forEach(cm => {
+            const key = `${se.id}_${cm}`;
+            const b = el('button', 'cab-w' + (key === furnitureKey ? ' selected' : ''), `${cm} cm`);
+            b.onclick = () => choosePiece(key);
+            widths.appendChild(b);
+          });
+          card.appendChild(widths);
+          list.appendChild(card);
+        });
+      });
+      return;
+    }
+
+    // Custom size form
+    list.appendChild(el('div', 'furn-cat', 'Type'));
+    const kinds = el('div', 'seg small');
+    ['base', 'wall', 'tall'].forEach(k => {
+      const b = el('button', customCab.kind === k ? 'active' : '', CAB_KIND_LABEL[k]);
+      b.onclick = () => {
+        // Switch the default depth too, unless the user already typed their own
+        if (customCab.d === CAB_KIND_DEPTH[customCab.kind]) customCab.d = CAB_KIND_DEPTH[k];
+        customCab.kind = k; renderPicker();
+      };
+      kinds.appendChild(b);
+    });
+    list.appendChild(kinds);
+    list.appendChild(el('div', 'param-hint', 'Base = sits on the floor · Overhead = mounted above bench (shown dashed) · Tall = pantry / wardrobe (shown with a cross)'));
+    const row = el('div', 'field-row');
+    row.style.marginTop = '10px';
+    row.innerHTML = `<label>Width (mm)<input type="number" id="cabW" min="50" step="10" value="${customCab.w}"></label>
+                     <label>Depth (mm)<input type="number" id="cabD" min="50" step="10" value="${customCab.d}"></label>`;
+    list.appendChild(row);
+    const nameLabel = el('label', '', 'Name (optional)');
+    nameLabel.style.cssText = 'display:block; font-size:11px; color:var(--muted); font-weight:600;';
+    const nameInput = el('input');
+    nameInput.type = 'text'; nameInput.placeholder = `e.g. ${CAB_KIND_LABEL[customCab.kind]} ${customCab.w}`; nameInput.value = customCab.name;
+    nameInput.style.marginTop = '4px';
+    nameLabel.appendChild(nameInput);
+    list.appendChild(nameLabel);
+    const use = el('button', 'btn primary', 'Use this size');
+    use.style.width = '100%'; use.style.padding = '10px';
+    use.onclick = () => {
+      const wv = parseInt(document.getElementById('cabW').value, 10), dv = parseInt(document.getElementById('cabD').value, 10);
+      if (!(wv >= 50 && wv <= 10000 && dv >= 50 && dv <= 3000)) { showStatus('Enter a width and depth in millimetres (e.g. 600)'); return; }
+      customCab.w = wv; customCab.d = dv; customCab.name = nameInput.value.trim();
+      choosePiece('custom');
+    };
+    list.appendChild(use);
+  }
+
+  function openFurniturePicker() {
+    pickerTab = getCurrentPiece().cab ? 'cabinetry' : pickerTab;
+    renderPicker();
+    furnitureModal.style.display = 'flex';
+  }
+  document.querySelectorAll('#pickerTabs button').forEach(b => b.addEventListener('click', () => { pickerTab = b.dataset.tab; renderPicker(); }));
+  document.getElementById('closeFurnitureBtn').addEventListener('click', () => { furnitureModal.style.display = 'none'; });
 
   const autoDrawModal = document.getElementById('autoDrawModal');
   document.querySelectorAll('#autoDetailChoices .detail-choice').forEach(btn => {
@@ -1998,19 +2495,18 @@
   const snapToggle = document.getElementById('snapToggle');
   snapToggle.addEventListener('click', () => {
     snapEnabled = !snapEnabled;
-    snapToggle.classList.toggle('active', snapEnabled);
+    snapToggle.classList.toggle('on', snapEnabled);
     showStatus(snapEnabled ? 'Snap ON: walls stay straight and join up to other walls' : 'Snap OFF: draw walls at any angle');
   });
 
   const penOnlyToggle = document.getElementById('penOnlyToggle');
   penOnlyToggle.addEventListener('click', () => {
     penOnlyMode = !penOnlyMode;
-    penOnlyToggle.classList.toggle('active', penOnlyMode);
-    showStatus(penOnlyMode ? 'S-Pen Mode ON: S Pen draws, 1-finger pans' : 'Touch Draw Mode: Finger & S Pen both draw');
+    penOnlyToggle.classList.toggle('on', penOnlyMode);
+    showStatus(penOnlyMode ? 'Pen only ON: the S Pen draws, fingers move the view' : 'Pen only OFF: fingers and S Pen both draw');
   });
 
   document.getElementById('resetViewBtn').addEventListener('click', fitCanvasToImage);
-  document.getElementById('undoBtn').addEventListener('click', undo);
   floatingUndoBtn.addEventListener('click', undo);
   floatingRedoBtn.addEventListener('click', redo);
 
